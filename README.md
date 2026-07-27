@@ -1,58 +1,154 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# MRS Meat Trading — P&L Web App
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A web application for **MRS Meat Trading** that replaces the Excel-based Profit & Loss workflow. Manages income statements, expenses, purchases, sales invoices, receivables, wastages, salaries, and contacts — all with a fully dynamic, database-driven P&L structure.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Tech Stack
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Layer | Technology |
+|---|---|
+| Backend Framework | Laravel 13 |
+| Language | PHP 8.3 |
+| Database | MySQL 8 |
+| Authentication | Laravel Sanctum |
+| Roles & Permissions | Spatie Laravel Permission |
+| Audit Log | Spatie Laravel Activitylog |
+| Frontend Framework | React 18 |
+| SPA Bridge | Inertia.js v2 |
+| UI Components | MUI v6 (Material UI) |
+| Build Tool | Vite 8 |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Features
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- **Dynamic P&L Statement** — categories and line items are database-driven; no hardcoded accounts
+- **Inline cell editing** — click any cell on the P&L table to enter or update an amount
+- **Formula-driven rows** — Gross Profit, Net Profit, and Wastages are auto-computed; no manual entry needed
+- **Wastage tracking** — item-level wastage records (qty × cost price) that feed directly into the P&L
+- **Expense Manager** — CRUD with category, date, reference, and notes
+- **Purchases** — purchase orders per supplier with dynamic line items
+- **Sales Invoices & Receivables** — invoice builder with status tracking (Draft → Sent → Partial → Paid / Overdue)
+- **Salary Ledger** — per-employee, per-period salary entries
+- **Partner Profit Split** — distributes Net Profit to partners by share percentage on period close
+- **Contact Directory** — suppliers and customers in one searchable list
+- **Activity Log** — full audit trail via Spatie Activitylog
+- **Role-based access** — Admin, Manager, Staff roles with granular permissions
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+## P&L Formula Logic
 
-## Agentic Development
+| Row | Formula |
+|---|---|
+| Total Sales | Sum of revenue line items |
+| Total COS | Sum of COS line items |
+| Gross Profit before Wastage | Total Sales − Total COS |
+| Wastages | Auto-summed from `wastage_entries` (qty × cost price) |
+| **Gross Profit** | **Total Sales − Total COS − Wastages** |
+| Total SG&A | Sum of SG&A line items |
+| **Net Profit / (Loss)** | **Gross Profit − Total SG&A + Other Income − Other Expenses** |
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+---
+
+## Requirements
+
+- PHP 8.3+
+- Composer
+- Node.js 18+ with npm
+- MySQL 8
+
+---
+
+## Installation
 
 ```bash
-composer require laravel/boost --dev
+# Clone and install dependencies
+composer install
+npm install
 
-php artisan boost:install
+# Copy environment file and configure
+cp .env.example .env
+php artisan key:generate
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Update `.env` with your database credentials:
 
-## Contributing
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=mrs
+DB_USERNAME=root
+DB_PASSWORD=
+APP_URL=http://mrs.test
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+# Run migrations and seed initial data
+php artisan migrate --seed
 
-## Code of Conduct
+# Build frontend assets
+npm run build
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+---
 
-## Security Vulnerabilities
+## Development
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+# Start the Laravel dev server
+php artisan serve
 
-## License
+# Start Vite with HMR
+npm run dev
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+
+## Default Login
+
+After seeding, log in with:
+
+| Field | Value |
+|---|---|
+| Email | admin@mrs.local |
+| Password | password |
+
+---
+
+## Database Structure (key tables)
+
+```
+pnl_periods       — fiscal periods (name, start_date, end_date, is_closed)
+pnl_categories    — P&L sections (type, sort_order, is_calculated, formula)
+pnl_line_items    — individual accounts within a category
+pnl_entries       — amount per line item per date per period
+wastage_entries   — item-level wastage records (qty × cost_price = amount)
+
+expenses          — operating expenses with category and period
+purchase_orders   — supplier POs with line items
+invoices          — customer invoices with status and payment tracking
+payments          — payment records against invoices
+salary_entries    — per-employee per-period salary amounts
+partners          — profit-sharing partners with share percentages
+contacts          — unified supplier/customer directory
+```
+
+---
+
+## Roles & Permissions
+
+| Role | Permissions |
+|---|---|
+| Admin | Full access to all modules and settings |
+| Manager | View/manage P&L, expenses, invoices, purchases, contacts, salaries |
+| Staff | View P&L and contacts; manage expenses and invoices |
+
+---
+
+## Currency & Date Conventions
+
+- Currency: **PHP Peso (₱)** — stored as `DECIMAL(15,4)`, displayed with 2 decimal places
+- Dates: stored as `DATE` in MySQL, displayed as `Mon DD, YYYY` in the UI
