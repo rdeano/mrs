@@ -37,6 +37,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/pnl/periods/{period}/toggle-close', [PnlController::class, 'toggleClose'])->name('pnl.periods.toggle-close');
     Route::get('/pnl/periods/create', [PnlController::class, 'createPeriod'])->name('pnl.periods.create');
     Route::post('/pnl/periods', [PnlController::class, 'storePeriod'])->name('pnl.periods.store');
+    Route::delete('/pnl/periods/{period}', [PnlController::class, 'destroyPeriod'])->name('pnl.periods.destroy');
 
     // Wastages
     Route::get('/wastages', [WastageController::class, 'index'])->name('wastages.index');

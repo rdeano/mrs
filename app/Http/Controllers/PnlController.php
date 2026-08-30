@@ -380,6 +380,16 @@ class PnlController extends Controller
         return redirect('/pnl?period_id=' . $period->id)->with('success', 'Period created.');
     }
 
+    public function destroyPeriod(PnlPeriod $period): RedirectResponse
+    {
+        // Soft delete only — entries/expenses/purchases/invoices/salaries/wastages tied
+        // to this period are left untouched in the database in case the data is needed
+        // again later (e.g. restoring the period via tinker).
+        $period->delete();
+
+        return redirect('/pnl')->with('success', 'Period deleted.');
+    }
+
     private function assertManualEntryAllowed(int $lineItemId): void
     {
         $item = PnlLineItem::withCount('expenseCategories')->findOrFail($lineItemId);

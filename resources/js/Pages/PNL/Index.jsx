@@ -5,7 +5,7 @@ import {
     Box, Card, CardContent, Typography, Stack, Select, MenuItem,
     FormControl, InputLabel, Chip, Button, Divider,
 } from '@mui/material';
-import { Add, Lock, LockOpen } from '@mui/icons-material';
+import { Add, Delete, Lock, LockOpen } from '@mui/icons-material';
 import PnlGrid from '@/Components/Pnl/PnlGrid';
 import QuickAddDialog from '@/Components/Pnl/QuickAddDialog';
 
@@ -26,6 +26,11 @@ export default function PnlIndex({ periods, currentPeriod, categories, dates, ex
     const changePeriod = (id) => {
         setSelectedPeriodId(id);
         router.get('/pnl', { period_id: id }, { preserveState: false });
+    };
+
+    const handleDeletePeriod = () => {
+        if (!confirm(`Delete period "${currentPeriod.name}"? Its expenses, purchases, invoices, salaries, and wastages are kept — this only removes it from the P&L period list.`)) return;
+        router.delete(`/pnl/periods/${currentPeriod.id}`);
     };
 
     const handleAutoCellClick = (row, date) => {
@@ -68,6 +73,17 @@ export default function PnlIndex({ periods, currentPeriod, categories, dates, ex
                             onClick={() => router.post(`/pnl/periods/${currentPeriod.id}/toggle-close`)}
                         >
                             {currentPeriod.is_closed ? 'Reopen' : 'Close Period'}
+                        </Button>
+                    )}
+                    {currentPeriod && auth.permissions.includes('manage pnl') && (
+                        <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            startIcon={<Delete />}
+                            onClick={handleDeletePeriod}
+                        >
+                            Delete Period
                         </Button>
                     )}
                     <Button variant="contained" size="small" startIcon={<Add />} onClick={() => router.get('/pnl/periods/create')}>
