@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Contact;
 use App\Models\Customer;
 use App\Models\Employee;
+use App\Models\ExpenseCategory;
 use App\Models\Partner;
 use App\Models\PnlCategory;
 use App\Models\PnlLineItem;
@@ -63,12 +64,11 @@ class DatabaseSeeder extends Seeder
         $user->assignRole('admin');
 
         $this->seedPnlStructure();
+        $this->seedExpenseCategories();
 
-        Partner::insert([
-            ['name' => 'JA',        'share_percentage' => 40.00, 'is_active' => 1, 'created_at' => now(), 'updated_at' => now()],
-            ['name' => 'Mam Maila', 'share_percentage' =>  0.00, 'is_active' => 1, 'created_at' => now(), 'updated_at' => now()],
-            ['name' => 'Mam Beng',  'share_percentage' => 60.00, 'is_active' => 1, 'created_at' => now(), 'updated_at' => now()],
-        ]);
+        Partner::updateOrCreate(['name' => 'Mam Beng'], ['share_percentage' => 33.34, 'is_active' => true]);
+        Partner::updateOrCreate(['name' => 'Sir Jom'],  ['share_percentage' => 33.33, 'is_active' => true]);
+        Partner::updateOrCreate(['name' => 'Maila'],    ['share_percentage' => 33.33, 'is_active' => true]);
 
         Supplier::insert([
             ['name' => 'Davao 666 Trading',    'phone' => '227-0766',    'contact_person' => null, 'notes' => '09173939118 / 09223006633 / 09989712906', 'created_at' => now(), 'updated_at' => now()],
@@ -119,20 +119,23 @@ class DatabaseSeeder extends Seeder
              'items' => [
                  'Legal Fees', 'Audit Fee', 'Other Professional Fee',
                  'Taxes & Licenses', 'Bank Charges/Others', 'Meals', 'Toll Fee',
-                 'Office Supplies', 'Resiko', 'Rent', 'Representation',
+                 'Office Supplies', 'Ice/ Cellophone', 'Rent', 'Representation',
                  'Telephone, Internet', 'Electricity & Water', 'Office Maintenance',
                  'Office Equipment', 'Staff Amenities/Last Pay', 'Transportation Expense',
                  'Bad Debts', 'Salaries and Wages', 'Employer Contribution/Separation Fee',
                  'Commission Payment', '13th Month Pay',
              ]],
 
+            ['type' => 'operating_profit', 'name' => 'Operating Profit',   'calc' => true,  'formula' => 'gross_profit - sga',
+             'items' => []],
+
             ['type' => 'other_income',  'name' => 'Other Income',          'calc' => false, 'formula' => null,
              'items' => ['Interest Income', 'Forex Exchange Gain (Loss)', 'Other Income']],
 
             ['type' => 'other_expense', 'name' => 'Other Expenses',        'calc' => false, 'formula' => null,
-             'items' => ['Interest Expense', 'Other Expenses']],
+             'items' => ['Other Expenses Labor', 'Interest Expense', 'Other Expenses']],
 
-            ['type' => 'net_profit',    'name' => 'Net Profit / (Loss)',   'calc' => true,  'formula' => 'gross_profit - sga + other_income - other_expense',
+            ['type' => 'net_profit',    'name' => 'Net Profit / (Loss)',   'calc' => true,  'formula' => 'operating_profit + other_income - other_expense',
              'items' => []],
         ];
 
@@ -154,6 +157,38 @@ class DatabaseSeeder extends Seeder
                     'is_active'       => true,
                 ]);
             }
+        }
+
+        // Stable markers for line items sourced from other modules, rather than
+        // looking them up by name at request time.
+        PnlLineItem::where('name', 'Trading Product Cost')->update(['auto_source' => 'purchase']);
+        PnlLineItem::where('name', 'Trading Products - Sales')->update(['auto_source' => 'invoice']);
+        PnlLineItem::where('name', 'Wastages')->update(['auto_source' => 'wastage']);
+        PnlLineItem::where('name', 'Salaries and Wages')->update(['auto_source' => 'salary']);
+    }
+
+    /**
+     * One expense category per P&L line item that's meant to be logged as day-to-day
+     * expenses. Trading Products - Sales (Invoices), Trading Product Cost (Purchases),
+     * Sales Return, Wastages (WastageEntry), and Salaries and Wages (SalaryEntry) are
+     * deliberately excluded — they're sourced elsewhere or stay manual.
+     */
+    private function seedExpenseCategories(): void
+    {
+        $excluded = ['Trading Products - Sales', 'Trading Product Cost', 'Sales Return', 'Salaries and Wages'];
+
+        $lineItems = PnlLineItem::whereHas('category', fn($q) => $q->whereIn('type', ['cos', 'sga', 'other_expense']))
+            ->where('name', '!=', 'Wastages')
+            ->whereNotIn('name', $excluded)
+            ->orderBy('sort_order')
+            ->get();
+
+        foreach ($lineItems as $sort => $item) {
+            ExpenseCategory::create([
+                'name'            => $item->name,
+                'sort_order'      => $sort + 1,
+                'pnl_line_item_id'=> $item->id,
+            ]);
         }
     }
 }

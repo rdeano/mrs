@@ -36,7 +36,7 @@ const NAV_GROUPS = [
         items: [
             { label: 'Expenses',  href: '/expenses',  icon: <ExpenseIcon fontSize="small" />,  permission: 'view expenses' },
             { label: 'Purchases', href: '/purchases', icon: <PurchaseIcon fontSize="small" />, permission: 'view purchases' },
-            { label: 'Invoices',  href: '/invoices',  icon: <InvoiceIcon fontSize="small" />,  permission: 'view invoices' },
+            { label: 'Receivables', href: '/receivables', icon: <InvoiceIcon fontSize="small" />, permission: 'view invoices' },
             { label: 'Wastages',  href: '/wastages',  icon: <WastageIcon fontSize="small" />,  permission: 'view expenses' },
             { label: 'Salaries',  href: '/salaries',  icon: <EmployeeIcon fontSize="small" />, permission: 'view salaries' },
         ],
@@ -52,7 +52,7 @@ const NAV_GROUPS = [
         label: 'SYSTEM',
         items: [
             { label: 'Activity Log', href: '/activity-log', icon: <LogIcon fontSize="small" />,     permission: 'view activity log' },
-            { label: 'Settings',     href: '/settings',     icon: <SettingsIcon fontSize="small" />, permission: 'manage settings' },
+            { label: 'Settings',     href: '/settings/pnl-structure', icon: <SettingsIcon fontSize="small" />, permission: 'manage settings' },
         ],
     },
 ];

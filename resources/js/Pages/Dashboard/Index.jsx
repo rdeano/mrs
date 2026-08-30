@@ -8,9 +8,7 @@ import {
     TrendingUp, TrendingDown, AccountBalance, ReceiptLong,
     ArrowUpward, ArrowDownward,
 } from '@mui/icons-material';
-
-const peso = (v) =>
-    '₱' + Number(v ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { peso } from '@/utils/format';
 
 const STATUS_COLOR = {
     draft:   'default',
@@ -138,7 +136,7 @@ export default function Dashboard({ period, stats, receivablesAging, recentInvoi
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 7 }}>
-                    <SectionCard title="Recent Invoices">
+                    <SectionCard title="Recent Receivables">
                         {hasInvoices ? (
                             <Stack divider={<Divider />}>
                                 {recentInvoices.map((inv) => (
@@ -149,7 +147,7 @@ export default function Dashboard({ period, stats, receivablesAging, recentInvoi
                                         alignItems="center"
                                         py={1.25}
                                         sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'grey.50' }, mx: -1, px: 1, borderRadius: 1 }}
-                                        onClick={() => router.get(`/invoices/${inv.id}`)}
+                                        onClick={() => router.get('/receivables', inv.pnl_period_id ? { period_id: inv.pnl_period_id } : {})}
                                     >
                                         <Box>
                                             <Typography variant="body2" fontWeight={600}>{inv.invoice_no}</Typography>
@@ -173,7 +171,7 @@ export default function Dashboard({ period, stats, receivablesAging, recentInvoi
                             </Stack>
                         ) : (
                             <Typography variant="body2" color="text.secondary" textAlign="center" py={3}>
-                                No invoices yet.
+                                No receivables yet.
                             </Typography>
                         )}
                     </SectionCard>

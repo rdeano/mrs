@@ -13,13 +13,13 @@ class WastageEntry extends Model
     use LogsActivity, SoftDeletes;
 
     protected $fillable = [
-        'pnl_period_id', 'item_name', 'unit', 'qty', 'cost_price', 'amount', 'wastage_date', 'notes',
+        'pnl_period_id', 'pnl_line_item_id', 'item_name', 'unit', 'qty', 'cost_price', 'amount', 'wastage_date', 'notes',
     ];
 
     protected function casts(): array
     {
         return [
-            'wastage_date' => 'date',
+            'wastage_date' => 'date:Y-m-d',
             'qty'          => 'decimal:4',
             'cost_price'   => 'decimal:4',
             'amount'       => 'decimal:4',
@@ -34,6 +34,11 @@ class WastageEntry extends Model
     public function period(): BelongsTo
     {
         return $this->belongsTo(PnlPeriod::class, 'pnl_period_id');
+    }
+
+    public function pnlLineItem(): BelongsTo
+    {
+        return $this->belongsTo(PnlLineItem::class);
     }
 
     protected static function booted(): void

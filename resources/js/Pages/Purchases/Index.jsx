@@ -11,100 +11,72 @@ import {
 import { Add, Delete, Edit, AutoAwesome } from '@mui/icons-material';
 import { peso, longDate as fmt } from '@/utils/format';
 
-function EntryForm({ open, onClose, periodId, entry }) {
+function EntryForm({ open, onClose, periodId, suppliers, entry }) {
     const editing = Boolean(entry);
     const { data, setData, post, put, processing, errors, reset } = useForm({
         pnl_period_id: periodId ?? '',
-        item_name:     entry?.item_name   ?? '',
-        unit:          entry?.unit        ?? 'kg',
-        qty:           entry?.qty         ?? '',
-        cost_price:    entry?.cost_price  ?? '',
-        wastage_date:  entry?.wastage_date ?? '',
-        notes:         entry?.notes       ?? '',
+        supplier_id:   entry?.supplier_id  ?? '',
+        po_date:       entry?.po_date      ?? '',
+        total_amount:  entry?.total_amount ?? '',
+        notes:         entry?.notes        ?? '',
     });
-
-    const computed = Number(data.qty || 0) * Number(data.cost_price || 0);
 
     const submit = (e) => {
         e.preventDefault();
         const opts = { onSuccess: () => { reset(); onClose(); } };
         if (editing) {
-            router.put(`/wastages/${entry.id}`, data, opts);
+            router.put(`/purchases/${entry.id}`, data, opts);
         } else {
-            router.post('/wastages', data, opts);
+            router.post('/purchases', data, opts);
         }
     };
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
             <form onSubmit={submit}>
-                <DialogTitle fontWeight={700}>{editing ? 'Edit Wastage Entry' : 'Add Wastage Entry'}</DialogTitle>
+                <DialogTitle fontWeight={700}>{editing ? 'Edit Purchase' : 'Add Purchase'}</DialogTitle>
                 <Divider />
                 <DialogContent>
                     <Stack spacing={2.5} pt={1}>
-                        <Stack direction="row" spacing={2}>
-                            <TextField
-                                label="Item Name"
-                                value={data.item_name}
-                                onChange={(e) => setData('item_name', e.target.value)}
-                                error={!!errors.item_name}
-                                helperText={errors.item_name}
-                                fullWidth
-                                required
+                        <FormControl fullWidth required error={!!errors.supplier_id}>
+                            <InputLabel>Supplier</InputLabel>
+                            <Select
+                                label="Supplier"
+                                value={data.supplier_id}
+                                onChange={(e) => setData('supplier_id', e.target.value)}
                                 autoFocus
-                            />
-                            <TextField
-                                label="Unit"
-                                value={data.unit}
-                                onChange={(e) => setData('unit', e.target.value)}
-                                sx={{ width: 100 }}
-                            />
-                        </Stack>
+                            >
+                                {suppliers.map((s) => (
+                                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
                         <Stack direction="row" spacing={2}>
                             <TextField
-                                label="Qty Wasted"
+                                label="Total Amount"
                                 type="number"
-                                value={data.qty}
-                                onChange={(e) => setData('qty', e.target.value)}
-                                error={!!errors.qty}
-                                helperText={errors.qty}
+                                value={data.total_amount}
+                                onChange={(e) => setData('total_amount', e.target.value)}
+                                error={!!errors.total_amount}
+                                helperText={errors.total_amount}
                                 fullWidth
                                 required
                                 inputProps={{ step: 'any', min: 0 }}
                             />
                             <TextField
-                                label="Cost Price / unit"
-                                type="number"
-                                value={data.cost_price}
-                                onChange={(e) => setData('cost_price', e.target.value)}
-                                error={!!errors.cost_price}
-                                helperText={errors.cost_price}
+                                label="Date"
+                                type="date"
+                                value={data.po_date}
+                                onChange={(e) => setData('po_date', e.target.value)}
+                                error={!!errors.po_date}
+                                helperText={errors.po_date}
                                 fullWidth
                                 required
-                                inputProps={{ step: 'any', min: 0 }}
+                                InputLabelProps={{ shrink: true }}
                             />
                         </Stack>
 
-                        {computed > 0 && (
-                            <Box sx={{ bgcolor: 'error.50', border: '1px solid', borderColor: 'error.200', borderRadius: 2, px: 2, py: 1.5 }}>
-                                <Stack direction="row" justifyContent="space-between">
-                                    <Typography variant="body2" color="error.dark">Computed Wastage Amount</Typography>
-                                    <Typography variant="body2" fontWeight={700} color="error.main">{peso(computed)}</Typography>
-                                </Stack>
-                            </Box>
-                        )}
-
-                        <TextField
-                            label="Date"
-                            type="date"
-                            value={data.wastage_date}
-                            onChange={(e) => setData('wastage_date', e.target.value)}
-                            error={!!errors.wastage_date}
-                            helperText={errors.wastage_date}
-                            fullWidth
-                            required
-                            InputLabelProps={{ shrink: true }}
-                        />
                         <TextField
                             label="Notes"
                             value={data.notes}
@@ -119,7 +91,7 @@ function EntryForm({ open, onClose, periodId, entry }) {
                 <DialogActions sx={{ px: 3, py: 2 }}>
                     <Button onClick={onClose} color="inherit">Cancel</Button>
                     <Button type="submit" variant="contained" disabled={processing}>
-                        {editing ? 'Save Changes' : 'Add Entry'}
+                        {editing ? 'Save Changes' : 'Add Purchase'}
                     </Button>
                 </DialogActions>
             </form>
@@ -127,38 +99,38 @@ function EntryForm({ open, onClose, periodId, entry }) {
     );
 }
 
-export default function WastagesIndex({ periods, currentPeriod, entries, total }) {
+export default function PurchasesIndex({ periods, currentPeriod, entries, suppliers, total }) {
     const { auth } = usePage().props;
-    const canEdit = auth.permissions.includes('manage expenses') && !currentPeriod?.is_closed;
+    const canEdit = auth.permissions.includes('manage purchases') && !currentPeriod?.is_closed;
     const [formOpen, setFormOpen] = useState(false);
     const [editEntry, setEditEntry] = useState(null);
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
 
     const changePeriod = (id) => {
         setSelectedPeriodId(id);
-        router.get('/wastages', { period_id: id }, { preserveState: false });
+        router.get('/purchases', { period_id: id }, { preserveState: false });
     };
 
     const handleDelete = (id) => {
-        if (confirm('Delete this wastage entry?')) {
-            router.delete(`/wastages/${id}`);
+        if (confirm('Delete this purchase?')) {
+            router.delete(`/purchases/${id}`);
         }
     };
 
     return (
-        <AppLayout title="Wastages">
-            <Head title="Wastages" />
+        <AppLayout title="Purchases">
+            <Head title="Purchases" />
 
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
                 <Box>
                     <Stack direction="row" alignItems="center" spacing={1}>
-                        <Typography variant="h5" fontWeight={700}>Wastages</Typography>
-                        <Tooltip title="Values auto-feed into the P&L Wastages row">
-                            <Chip icon={<AutoAwesome fontSize="small" />} label="Formula-driven" size="small" color="secondary" variant="outlined" />
+                        <Typography variant="h5" fontWeight={700}>Purchases</Typography>
+                        <Tooltip title="Totals auto-feed into the P&L 'Trading Product Cost' row">
+                            <Chip icon={<AutoAwesome fontSize="small" />} label="Feeds P&L" size="small" color="secondary" variant="outlined" />
                         </Tooltip>
                     </Stack>
                     <Typography variant="body2" color="text.secondary" mt={0.5}>
-                        Records here automatically update the Wastages line in the P&L statement.
+                        Purchase orders per supplier. Totals roll into Trading Product Cost.
                     </Typography>
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
@@ -172,7 +144,7 @@ export default function WastagesIndex({ periods, currentPeriod, entries, total }
                     </FormControl>
                     {canEdit && (
                         <Button variant="contained" startIcon={<Add />} onClick={() => { setEditEntry(null); setFormOpen(true); }}>
-                            Add Entry
+                            Add Purchase
                         </Button>
                     )}
                 </Stack>
@@ -185,11 +157,8 @@ export default function WastagesIndex({ periods, currentPeriod, entries, total }
                             <TableHead>
                                 <TableRow>
                                     <TableCell>Date</TableCell>
-                                    <TableCell>Item</TableCell>
-                                    <TableCell align="right">Qty</TableCell>
-                                    <TableCell>Unit</TableCell>
-                                    <TableCell align="right">Cost/unit</TableCell>
-                                    <TableCell align="right">Amount</TableCell>
+                                    <TableCell>Supplier</TableCell>
+                                    <TableCell align="right">Total Amount</TableCell>
                                     <TableCell>Notes</TableCell>
                                     {canEdit && <TableCell align="center" sx={{ width: 80 }} />}
                                 </TableRow>
@@ -197,20 +166,17 @@ export default function WastagesIndex({ periods, currentPeriod, entries, total }
                             <TableBody>
                                 {entries.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={8} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                                            No wastage entries for this period.
+                                        <TableCell colSpan={5} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                            No purchases for this period.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     entries.map((row) => (
                                         <TableRow key={row.id} hover>
-                                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmt(row.wastage_date)}</TableCell>
-                                            <TableCell fontWeight={500}>{row.item_name}</TableCell>
-                                            <TableCell align="right">{Number(row.qty).toLocaleString()}</TableCell>
-                                            <TableCell>{row.unit ?? '—'}</TableCell>
-                                            <TableCell align="right">{peso(row.cost_price)}</TableCell>
-                                            <TableCell align="right" sx={{ fontWeight: 600, color: 'error.main' }}>{peso(row.amount)}</TableCell>
-                                            <TableCell sx={{ color: 'text.secondary', maxWidth: 200 }}>{row.notes ?? '—'}</TableCell>
+                                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmt(row.po_date)}</TableCell>
+                                            <TableCell fontWeight={500}>{row.supplier?.name ?? '—'}</TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 600 }}>{peso(row.total_amount)}</TableCell>
+                                            <TableCell sx={{ color: 'text.secondary', maxWidth: 240 }}>{row.notes ?? '—'}</TableCell>
                                             {canEdit && (
                                                 <TableCell align="center">
                                                     <Stack direction="row" spacing={0.5} justifyContent="center">
@@ -233,8 +199,8 @@ export default function WastagesIndex({ periods, currentPeriod, entries, total }
                     {entries.length > 0 && (
                         <Box sx={{ px: 2, py: 1.5, borderTop: '1px solid', borderColor: 'divider', bgcolor: 'grey.50' }}>
                             <Stack direction="row" justifyContent="flex-end" spacing={2}>
-                                <Typography variant="body2" color="text.secondary">Total Wastage:</Typography>
-                                <Typography variant="body2" fontWeight={700} color="error.main">{peso(total)}</Typography>
+                                <Typography variant="body2" color="text.secondary">Total Purchases:</Typography>
+                                <Typography variant="body2" fontWeight={700}>{peso(total)}</Typography>
                             </Stack>
                         </Box>
                     )}
@@ -246,6 +212,7 @@ export default function WastagesIndex({ periods, currentPeriod, entries, total }
                 open={formOpen}
                 onClose={() => setFormOpen(false)}
                 periodId={currentPeriod?.id}
+                suppliers={suppliers}
                 entry={editEntry}
             />
         </AppLayout>

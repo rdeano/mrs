@@ -51,7 +51,7 @@ class DashboardController extends Controller
         $recentInvoices = Invoice::with('customer')
             ->latest('invoice_date')
             ->take(8)
-            ->get(['id', 'invoice_no', 'customer_id', 'invoice_date', 'status', 'total_amount', 'paid_amount']);
+            ->get(['id', 'invoice_no', 'customer_id', 'pnl_period_id', 'invoice_date', 'status', 'total_amount', 'paid_amount']);
 
         $now = now();
         $receivablesAging = [

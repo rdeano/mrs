@@ -14,15 +14,15 @@ class Invoice extends Model
     use LogsActivity, SoftDeletes;
 
     protected $fillable = [
-        'invoice_no', 'customer_id', 'pnl_period_id', 'invoice_date',
+        'invoice_no', 'customer_id', 'pnl_period_id', 'pnl_line_item_id', 'invoice_date',
         'due_date', 'status', 'total_amount', 'paid_amount', 'notes',
     ];
 
     protected function casts(): array
     {
         return [
-            'invoice_date' => 'date',
-            'due_date' => 'date',
+            'invoice_date' => 'date:Y-m-d',
+            'due_date' => 'date:Y-m-d',
             'total_amount' => 'decimal:4',
             'paid_amount' => 'decimal:4',
         ];
@@ -41,6 +41,11 @@ class Invoice extends Model
     public function period(): BelongsTo
     {
         return $this->belongsTo(PnlPeriod::class, 'pnl_period_id');
+    }
+
+    public function pnlLineItem(): BelongsTo
+    {
+        return $this->belongsTo(PnlLineItem::class);
     }
 
     public function items(): HasMany

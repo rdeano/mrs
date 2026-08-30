@@ -13,12 +13,12 @@ class PurchaseOrder extends Model
 {
     use LogsActivity, SoftDeletes;
 
-    protected $fillable = ['supplier_id', 'pnl_period_id', 'po_date', 'total_amount', 'notes'];
+    protected $fillable = ['supplier_id', 'pnl_period_id', 'pnl_line_item_id', 'po_date', 'total_amount', 'notes'];
 
     protected function casts(): array
     {
         return [
-            'po_date' => 'date',
+            'po_date' => 'date:Y-m-d',
             'total_amount' => 'decimal:4',
         ];
     }
@@ -36,6 +36,11 @@ class PurchaseOrder extends Model
     public function period(): BelongsTo
     {
         return $this->belongsTo(PnlPeriod::class, 'pnl_period_id');
+    }
+
+    public function pnlLineItem(): BelongsTo
+    {
+        return $this->belongsTo(PnlLineItem::class);
     }
 
     public function items(): HasMany
