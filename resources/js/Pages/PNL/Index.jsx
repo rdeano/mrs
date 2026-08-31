@@ -36,14 +36,17 @@ function ProfitDistribution({ distribution, canEdit }) {
         <Card elevation={2} sx={{ mt: 3, maxWidth: 420 }}>
             <CardContent>
                 <Typography variant="subtitle1" fontWeight={700} mb={1}>Profit Distribution</Typography>
+                <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+                    Net Profit below is already after BIR &amp; Savings — see that row in the statement above for the breakdown.
+                </Typography>
                 <Divider sx={{ mb: 1 }} />
 
-                {row('Pnl Total', peso(distribution.net_profit))}
+                {row('Net Profit', peso(distribution.net_profit), { bold: true })}
 
                 <Stack direction="row" justifyContent="space-between" alignItems="center" py={0.75}>
                     <Stack direction="row" alignItems="center" spacing={0.5}>
                         <Typography variant="body2" color="text.secondary">
-                            Less: BIR &amp; Savings
+                            BIR &amp; Savings rate
                         </Typography>
                         {editing ? (
                             <Stack direction="row" alignItems="center" spacing={0.5}>
@@ -82,13 +85,12 @@ function ProfitDistribution({ distribution, canEdit }) {
                             </Stack>
                         )}
                     </Stack>
-                    <Typography variant="body2" color="error.main">
-                        ({peso(distribution.bir_savings_amount)})
+                    <Typography variant="body2" color="text.secondary">
+                        ({peso(distribution.bir_savings_amount)} deducted)
                     </Typography>
                 </Stack>
 
                 <Divider sx={{ my: 1 }} />
-                {row('Total', peso(distribution.after_bir_savings), { bold: true })}
                 {row('Divide by 3', peso(distribution.per_share), { bold: true, color: 'primary.main' })}
             </CardContent>
         </Card>

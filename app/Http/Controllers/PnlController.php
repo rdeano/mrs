@@ -135,29 +135,40 @@ class PnlController extends Controller
                 $opByDate[$d] = ($gpByDate[$d] ?? 0) - ($sgaByDate[$d] ?? 0);
             }
 
-            // net_profit[d] = operating_profit[d] + other_income[d] - other_expense[d]
-            $npByDate = [];
+            // pre_bir_profit[d] = operating_profit[d] + other_income[d] - other_expense[d]
+            $preBirByDate = [];
             foreach ($dates as $d) {
-                $npByDate[$d] = ($opByDate[$d] ?? 0)
+                $preBirByDate[$d] = ($opByDate[$d] ?? 0)
                     + ($oinByDate[$d] ?? 0)
                     - ($oexByDate[$d] ?? 0);
             }
 
-            // Profit distribution: Net Profit, less BIR & Savings (dynamic %), split 3 ways.
-            // A closed period uses its own locked-in rate (set at close time) so
-            // changing the live rate later never rewrites a closed period's numbers.
-            $netProfitTotal   = array_sum($npByDate);
-            $isLocked         = $currentPeriod->bir_savings_percent !== null;
-            $birSavingsPct    = $isLocked ? (float) $currentPeriod->bir_savings_percent : (float) Setting::get('bir_savings_percent', 25);
-            $birSavingsAmount = round($netProfitTotal * $birSavingsPct / 100, 2);
-            $afterBirSavings  = $netProfitTotal - $birSavingsAmount;
+            // BIR & Savings — deducted per date from that date's pre-BIR profit, at this
+            // period's effective rate. A closed period uses its own locked-in rate (set
+            // at close time) so changing the live rate later never rewrites a closed
+            // period's numbers.
+            $isLocked      = $currentPeriod->bir_savings_percent !== null;
+            $birSavingsPct = $isLocked ? (float) $currentPeriod->bir_savings_percent : (float) Setting::get('bir_savings_percent', 25);
+
+            $birByDate = [];
+            foreach ($dates as $d) {
+                $birByDate[$d] = round($preBirByDate[$d] * $birSavingsPct / 100, 2);
+            }
+
+            // net_profit[d] = pre_bir_profit[d] - bir_savings[d] — the true bottom line,
+            // after BIR & Savings, same figure the partner split is based on.
+            $npByDate = [];
+            foreach ($dates as $d) {
+                $npByDate[$d] = ($preBirByDate[$d] ?? 0) - ($birByDate[$d] ?? 0);
+            }
+
+            $netProfitTotal = array_sum($npByDate);
 
             $profitDistribution = [
                 'net_profit'          => $netProfitTotal,
                 'bir_savings_percent' => $birSavingsPct,
-                'bir_savings_amount'  => $birSavingsAmount,
-                'after_bir_savings'   => $afterBirSavings,
-                'per_share'           => round($afterBirSavings / 3, 2),
+                'bir_savings_amount'  => array_sum($birByDate),
+                'per_share'           => round($netProfitTotal / 3, 2),
                 'is_locked'           => $isLocked,
             ];
 
@@ -166,7 +177,7 @@ class PnlController extends Controller
             $partners = Partner::where('is_active', true)->orderByDesc('share_percentage')->get();
 
             // ── Step 4: assemble final categories for the view ───────────
-            $categories = $raw->map(function ($cat) use ($dates, $gpbwByDate, $gpByDate, $opByDate, $npByDate, $partners) {
+            $categories = $raw->map(function ($cat) use ($dates, $gpbwByDate, $gpByDate, $opByDate, $birByDate, $birSavingsPct, $npByDate, $partners) {
                 // For calculated categories, override date_totals & total
                 if ($cat['type'] === 'gross_profit') {
                     // Inject a virtual "Gross Profit before Wastage" row before Wastages
@@ -202,6 +213,25 @@ class PnlController extends Controller
                 }
 
                 if ($cat['type'] === 'net_profit') {
+                    // Inject a virtual "BIR & Savings" deduction row before the partner
+                    // split, same pattern as Gross Profit before Wastage → Wastages, so
+                    // the grid shows exactly how the pre-BIR profit becomes the net figure.
+                    $birEntries = collect($dates)
+                        ->mapWithKeys(fn($d) => [$d => $birByDate[$d]])
+                        ->filter(fn($v) => $v != 0);
+
+                    $pctLabel = rtrim(rtrim(number_format($birSavingsPct, 2), '0'), '.');
+
+                    $virtualBirRow = [
+                        'id'           => 'bir-savings',
+                        'name'         => "BIR & Savings ({$pctLabel}%)",
+                        'is_auto'      => true,
+                        'is_subtotal'  => true,
+                        'source_label' => null,
+                        'source_link'  => null,
+                        'entries'      => $birEntries,
+                    ];
+
                     $partnerRows = $partners->map(function (Partner $partner) use ($dates, $npByDate) {
                         $share = (float) $partner->share_percentage / 100;
 
@@ -220,8 +250,10 @@ class PnlController extends Controller
                         ];
                     });
 
+                    $lineItems = collect([$virtualBirRow])->concat($partnerRows);
+
                     return array_merge($cat, [
-                        'line_items'  => $partnerRows,
+                        'line_items'  => $lineItems,
                         'date_totals' => $npByDate,
                         'total'       => array_sum($npByDate),
                     ]);
