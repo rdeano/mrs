@@ -17,6 +17,7 @@ use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\ResekoController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\WastageController;
 use Illuminate\Support\Facades\Route;
 
@@ -133,5 +134,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/settings/pnl-line-items', [PnlStructureController::class, 'storeLineItem'])->name('settings.pnl-line-items.store');
     Route::put('/settings/pnl-line-items/{item}', [PnlStructureController::class, 'updateLineItem'])->name('settings.pnl-line-items.update');
     Route::post('/settings/pnl-line-items/{item}/move', [PnlStructureController::class, 'moveLineItem'])->name('settings.pnl-line-items.move');
+
+    // Settings — Users
+    Route::get('/settings/users', [UserController::class, 'index'])->name('settings.users.index');
+    Route::post('/settings/users', [UserController::class, 'store'])->name('settings.users.store');
+    Route::put('/settings/users/{user}', [UserController::class, 'update'])->name('settings.users.update');
+    Route::put('/settings/users/{user}/password', [UserController::class, 'updatePassword'])->name('settings.users.password');
+    Route::delete('/settings/users/{user}', [UserController::class, 'destroy'])->name('settings.users.destroy');
 
 });
