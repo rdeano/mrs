@@ -44,7 +44,7 @@ class InvoiceController extends Controller
         $validated = $request->validate([
             'pnl_period_id'          => 'required|exists:pnl_periods,id',
             'customer_id'            => 'required|exists:customers,id',
-            'invoice_no'             => 'required|string|max:50|unique:invoices,invoice_no',
+            'invoice_no'             => ['required', 'string', 'max:50', Rule::unique('invoices', 'invoice_no')->whereNull('deleted_at')],
             'invoice_date'           => 'required|date',
             'notes'                  => 'nullable|string',
             'items'                  => 'required|array|min:1',
@@ -88,7 +88,7 @@ class InvoiceController extends Controller
     {
         $validated = $request->validate([
             'customer_id'            => 'required|exists:customers,id',
-            'invoice_no'             => ['required', 'string', 'max:50', Rule::unique('invoices', 'invoice_no')->ignore($invoice->id)],
+            'invoice_no'             => ['required', 'string', 'max:50', Rule::unique('invoices', 'invoice_no')->whereNull('deleted_at')->ignore($invoice->id)],
             'invoice_date'           => 'required|date',
             'notes'                  => 'nullable|string',
             'items'                  => 'required|array|min:1',
