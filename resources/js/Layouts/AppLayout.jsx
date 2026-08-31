@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import { router } from '@inertiajs/react';
 import {
@@ -13,7 +13,10 @@ import {
     Receipt as ExpenseIcon,
     ShoppingCart as PurchaseIcon,
     Description as InvoiceIcon,
+    Payments as PaymentsIcon,
+    Inventory2 as ItemIcon,
     People as ContactIcon,
+    LocalShipping as SupplierIcon,
     PersonOutline as EmployeeIcon,
     Handshake as PartnerIcon,
     DeleteOutline as WastageIcon,
@@ -37,14 +40,22 @@ const NAV_GROUPS = [
             { label: 'Expenses',  href: '/expenses',  icon: <ExpenseIcon fontSize="small" />,  permission: 'view expenses' },
             { label: 'Purchases', href: '/purchases', icon: <PurchaseIcon fontSize="small" />, permission: 'view purchases' },
             { label: 'Receivables', href: '/receivables', icon: <InvoiceIcon fontSize="small" />, permission: 'view invoices' },
+            { label: 'Payments', href: '/payments', icon: <PaymentsIcon fontSize="small" />, permission: 'view invoices' },
             { label: 'Wastages',  href: '/wastages',  icon: <WastageIcon fontSize="small" />,  permission: 'view expenses' },
             { label: 'Salaries',  href: '/salaries',  icon: <EmployeeIcon fontSize="small" />, permission: 'view salaries' },
+        ],
+    },
+    {
+        label: 'CATALOG',
+        items: [
+            { label: 'Items', href: '/items', icon: <ItemIcon fontSize="small" />, permission: 'view items' },
         ],
     },
     {
         label: 'PEOPLE',
         items: [
             { label: 'Contacts', href: '/contacts', icon: <ContactIcon fontSize="small" />, permission: 'view contacts' },
+            { label: 'Suppliers', href: '/suppliers', icon: <SupplierIcon fontSize="small" />, permission: 'view suppliers' },
             { label: 'Partners', href: '/partners', icon: <PartnerIcon fontSize="small" />, permission: 'view partners' },
         ],
     },
@@ -65,11 +76,15 @@ export default function AppLayout({ children, title }) {
     const { auth, flash } = usePage().props;
     const [mobileOpen, setMobileOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
-    const [snackbar, setSnackbar] = useState(
-        flash?.success ? { open: true, message: flash.success, severity: 'success' } :
-        flash?.error   ? { open: true, message: flash.error,   severity: 'error'   } :
-        { open: false },
-    );
+    const [snackbar, setSnackbar] = useState({ open: false });
+
+    useEffect(() => {
+        if (flash?.success) {
+            setSnackbar({ open: true, message: flash.success, severity: 'success' });
+        } else if (flash?.error) {
+            setSnackbar({ open: true, message: flash.error, severity: 'error' });
+        }
+    }, [flash?.success, flash?.error]);
 
     const permissions = auth?.permissions ?? [];
     const canSee = (perm) => !perm || permissions.includes(perm);

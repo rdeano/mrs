@@ -2,7 +2,7 @@ import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
-    Box, Button, Card, CardContent, Chip, Dialog, DialogActions,
+    Autocomplete, Box, Button, Card, CardContent, Chip, Dialog, DialogActions,
     DialogContent, DialogTitle, Divider, FormControl, IconButton,
     InputLabel, MenuItem, Select, Stack, Table, TableBody,
     TableCell, TableContainer, TableHead, TableRow, TextField,
@@ -11,29 +11,44 @@ import {
 import { Add, Delete, Edit, AutoAwesome } from '@mui/icons-material';
 import { peso, longDate as fmt } from '@/utils/format';
 
-function EntryForm({ open, onClose, periodId, customers, entry }) {
+const emptyItem = () => ({ item_name: '', qty: '', unit_price: '' });
+
+function EntryForm({ open, onClose, periodId, customers, itemOptions, entry }) {
     const editing = Boolean(entry);
     const { data, setData, post, put, processing, errors, reset } = useForm({
         pnl_period_id: periodId ?? '',
         customer_id:   entry?.customer_id  ?? '',
         invoice_no:    entry?.invoice_no    ?? '',
         invoice_date:  entry?.invoice_date  ?? '',
-        total_amount:  entry?.total_amount  ?? '',
         notes:         entry?.notes         ?? '',
+        items:         entry?.items?.length
+            ? entry.items.map((it) => ({ item_name: it.item_name, qty: it.qty, unit_price: it.unit_price }))
+            : [emptyItem()],
     });
+
+    const setItem = (index, field, value) => {
+        const next = data.items.map((row, i) => (i === index ? { ...row, [field]: value } : row));
+        setData('items', next);
+    };
+
+    const addItem = () => setData('items', [...data.items, emptyItem()]);
+    const removeItem = (index) => setData('items', data.items.filter((_, i) => i !== index));
+
+    const rowAmount = (row) => (Number(row.qty) || 0) * (Number(row.unit_price) || 0);
+    const total = data.items.reduce((sum, row) => sum + rowAmount(row), 0);
 
     const submit = (e) => {
         e.preventDefault();
         const opts = { onSuccess: () => { reset(); onClose(); } };
         if (editing) {
-            router.put(`/receivables/${entry.id}`, data, opts);
+            put(`/receivables/${entry.id}`, opts);
         } else {
-            router.post('/receivables', data, opts);
+            post('/receivables', opts);
         }
     };
 
     return (
-        <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+        <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
             <form onSubmit={submit}>
                 <DialogTitle fontWeight={700}>{editing ? 'Edit Receivable' : 'Add Receivable'}</DialogTitle>
                 <Divider />
@@ -62,20 +77,6 @@ function EntryForm({ open, onClose, periodId, customers, entry }) {
                                     ))}
                                 </Select>
                             </FormControl>
-                        </Stack>
-
-                        <Stack direction="row" spacing={2}>
-                            <TextField
-                                label="Total Amount"
-                                type="number"
-                                value={data.total_amount}
-                                onChange={(e) => setData('total_amount', e.target.value)}
-                                error={!!errors.total_amount}
-                                helperText={errors.total_amount}
-                                fullWidth
-                                required
-                                inputProps={{ step: 'any', min: 0 }}
-                            />
                             <TextField
                                 label="Date"
                                 type="date"
@@ -87,6 +88,97 @@ function EntryForm({ open, onClose, periodId, customers, entry }) {
                                 required
                                 InputLabelProps={{ shrink: true }}
                             />
+                        </Stack>
+
+                        <Divider textAlign="left">
+                            <Typography variant="caption" color="text.secondary">ITEMS</Typography>
+                        </Divider>
+
+                        <Stack spacing={1.5}>
+                            {data.items.map((row, index) => (
+                                <Stack key={index} direction="row" spacing={1.5} alignItems="flex-start">
+                                    <Autocomplete
+                                        freeSolo
+                                        options={itemOptions}
+                                        getOptionLabel={(opt) => (typeof opt === 'string' ? opt : opt.name)}
+                                        value={row.item_name}
+                                        onChange={(_, value) => {
+                                            const next = data.items.map((r, i) => {
+                                                if (i !== index) return r;
+                                                if (value && typeof value === 'object') {
+                                                    return {
+                                                        ...r,
+                                                        item_name: value.name,
+                                                        unit_price: (value.default_price && !r.unit_price) ? value.default_price : r.unit_price,
+                                                    };
+                                                }
+                                                return { ...r, item_name: value ?? '' };
+                                            });
+                                            setData('items', next);
+                                        }}
+                                        onInputChange={(_, value) => setItem(index, 'item_name', value)}
+                                        sx={{ flex: 3 }}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                {...params}
+                                                label="Item"
+                                                required
+                                                error={!!errors[`items.${index}.item_name`]}
+                                                helperText={errors[`items.${index}.item_name`]}
+                                            />
+                                        )}
+                                    />
+                                    <TextField
+                                        label="Qty"
+                                        type="number"
+                                        value={row.qty}
+                                        onChange={(e) => setItem(index, 'qty', e.target.value)}
+                                        error={!!errors[`items.${index}.qty`]}
+                                        helperText={errors[`items.${index}.qty`]}
+                                        sx={{ flex: 1 }}
+                                        required
+                                        inputProps={{ step: 'any', min: 0 }}
+                                    />
+                                    <TextField
+                                        label="Price"
+                                        type="number"
+                                        value={row.unit_price}
+                                        onChange={(e) => setItem(index, 'unit_price', e.target.value)}
+                                        error={!!errors[`items.${index}.unit_price`]}
+                                        helperText={errors[`items.${index}.unit_price`]}
+                                        sx={{ flex: 1 }}
+                                        required
+                                        inputProps={{ step: 'any', min: 0 }}
+                                    />
+                                    <TextField
+                                        label="Amount"
+                                        value={peso(rowAmount(row))}
+                                        sx={{ flex: 1 }}
+                                        disabled
+                                    />
+                                    <IconButton
+                                        type="button"
+                                        size="small"
+                                        color="error"
+                                        onClick={() => removeItem(index)}
+                                        disabled={data.items.length === 1}
+                                        sx={{ mt: 1 }}
+                                    >
+                                        <Delete fontSize="small" />
+                                    </IconButton>
+                                </Stack>
+                            ))}
+                        </Stack>
+
+                        <Box>
+                            <Button type="button" size="small" startIcon={<Add />} onClick={addItem}>
+                                Add Item
+                            </Button>
+                        </Box>
+
+                        <Stack direction="row" justifyContent="flex-end" spacing={2} sx={{ pr: 6 }}>
+                            <Typography variant="body2" color="text.secondary">Total:</Typography>
+                            <Typography variant="body2" fontWeight={700}>{peso(total)}</Typography>
                         </Stack>
 
                         <TextField
@@ -101,7 +193,7 @@ function EntryForm({ open, onClose, periodId, customers, entry }) {
                 </DialogContent>
                 <Divider />
                 <DialogActions sx={{ px: 3, py: 2 }}>
-                    <Button onClick={onClose} color="inherit">Cancel</Button>
+                    <Button type="button" onClick={onClose} color="inherit">Cancel</Button>
                     <Button type="submit" variant="contained" disabled={processing}>
                         {editing ? 'Save Changes' : 'Add Receivable'}
                     </Button>
@@ -111,7 +203,7 @@ function EntryForm({ open, onClose, periodId, customers, entry }) {
     );
 }
 
-export default function ReceivablesIndex({ periods, currentPeriod, entries, customers, total }) {
+export default function ReceivablesIndex({ periods, currentPeriod, entries, customers, itemOptions, total }) {
     const { auth } = usePage().props;
     const canEdit = auth.permissions.includes('manage invoices') && !currentPeriod?.is_closed;
     const [formOpen, setFormOpen] = useState(false);
@@ -124,10 +216,22 @@ export default function ReceivablesIndex({ periods, currentPeriod, entries, cust
     };
 
     const handleDelete = (id) => {
-        if (confirm('Delete this receivable?')) {
+        if (confirm('Delete this receivable? This removes all its item lines.')) {
             router.delete(`/receivables/${id}`);
         }
     };
+
+    // Flatten invoices -> one row per item line, with rowSpan on the invoice-level columns.
+    const rows = entries.flatMap((invoice) => {
+        const items = invoice.items?.length ? invoice.items : [{ id: `${invoice.id}-blank`, item_name: null, qty: null, unit_price: null, amount: invoice.total_amount }];
+        return items.map((item, idx) => ({
+            key: `${invoice.id}-${item.id ?? idx}`,
+            invoice,
+            item,
+            isFirst: idx === 0,
+            span: items.length,
+        }));
+    });
 
     return (
         <AppLayout title="Receivables">
@@ -168,36 +272,52 @@ export default function ReceivablesIndex({ periods, currentPeriod, entries, cust
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>Date</TableCell>
                                     <TableCell>Invoice No.</TableCell>
-                                    <TableCell>Customer</TableCell>
-                                    <TableCell align="right">Total Amount</TableCell>
-                                    <TableCell>Notes</TableCell>
+                                    <TableCell>Name</TableCell>
+                                    <TableCell>Item</TableCell>
+                                    <TableCell align="right">Qty</TableCell>
+                                    <TableCell align="right">Price</TableCell>
+                                    <TableCell align="right">Amount</TableCell>
+                                    <TableCell>Date</TableCell>
                                     {canEdit && <TableCell align="center" sx={{ width: 80 }} />}
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {entries.length === 0 ? (
+                                {rows.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                        <TableCell colSpan={8} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                                             No receivables for this period.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    entries.map((row) => (
-                                        <TableRow key={row.id} hover>
-                                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmt(row.invoice_date)}</TableCell>
-                                            <TableCell fontWeight={500}>{row.invoice_no}</TableCell>
-                                            <TableCell>{row.customer?.name ?? '—'}</TableCell>
-                                            <TableCell align="right" sx={{ fontWeight: 600 }}>{peso(row.total_amount)}</TableCell>
-                                            <TableCell sx={{ color: 'text.secondary', maxWidth: 240 }}>{row.notes ?? '—'}</TableCell>
-                                            {canEdit && (
-                                                <TableCell align="center">
+                                    rows.map(({ key, invoice, item, isFirst, span }) => (
+                                        <TableRow key={key} hover>
+                                            {isFirst && (
+                                                <TableCell rowSpan={span} fontWeight={500} sx={{ verticalAlign: 'top' }}>
+                                                    {invoice.invoice_no}
+                                                </TableCell>
+                                            )}
+                                            {isFirst && (
+                                                <TableCell rowSpan={span} sx={{ verticalAlign: 'top' }}>
+                                                    {invoice.customer?.name ?? '—'}
+                                                </TableCell>
+                                            )}
+                                            <TableCell>{item.item_name ?? '—'}</TableCell>
+                                            <TableCell align="right">{item.qty ?? '—'}</TableCell>
+                                            <TableCell align="right">{item.unit_price ? peso(item.unit_price) : '—'}</TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 600 }}>{peso(item.amount)}</TableCell>
+                                            {isFirst && (
+                                                <TableCell rowSpan={span} sx={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                                                    {fmt(invoice.invoice_date)}
+                                                </TableCell>
+                                            )}
+                                            {canEdit && isFirst && (
+                                                <TableCell rowSpan={span} align="center" sx={{ verticalAlign: 'top' }}>
                                                     <Stack direction="row" spacing={0.5} justifyContent="center">
-                                                        <IconButton size="small" onClick={() => { setEditEntry(row); setFormOpen(true); }}>
+                                                        <IconButton size="small" onClick={() => { setEditEntry(invoice); setFormOpen(true); }}>
                                                             <Edit fontSize="small" />
                                                         </IconButton>
-                                                        <IconButton size="small" color="error" onClick={() => handleDelete(row.id)}>
+                                                        <IconButton size="small" color="error" onClick={() => handleDelete(invoice.id)}>
                                                             <Delete fontSize="small" />
                                                         </IconButton>
                                                     </Stack>
@@ -227,6 +347,7 @@ export default function ReceivablesIndex({ periods, currentPeriod, entries, cust
                 onClose={() => setFormOpen(false)}
                 periodId={currentPeriod?.id}
                 customers={customers}
+                itemOptions={itemOptions}
                 entry={editEntry}
             />
         </AppLayout>

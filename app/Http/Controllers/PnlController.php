@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Invoice;
+use App\Models\Item;
 use App\Models\Partner;
 use App\Models\PnlCategory;
 use App\Models\PnlEntry;
@@ -218,10 +219,11 @@ class PnlController extends Controller
         $suppliers         = Supplier::orderBy('name')->get(['id', 'name']);
         $customers         = Customer::orderBy('name')->get(['id', 'name']);
         $employees         = Employee::where('is_active', true)->orderBy('name')->get(['id', 'name', 'role']);
+        $itemOptions       = Item::where('is_active', true)->orderBy('name')->get(['id', 'name', 'unit', 'default_price']);
 
         return Inertia::render('PNL/Index', compact(
             'periods', 'currentPeriod', 'categories', 'dates',
-            'expenseCategories', 'suppliers', 'customers', 'employees'
+            'expenseCategories', 'suppliers', 'customers', 'employees', 'itemOptions'
         ));
     }
 
@@ -254,23 +256,29 @@ class PnlController extends Controller
             'purchase' => PurchaseOrder::where('pnl_period_id', $validated['pnl_period_id'])
                 ->where('pnl_line_item_id', $item->id)
                 ->where('po_date', $validated['date'])
-                ->with('supplier:id,name')
+                ->with(['supplier:id,name', 'items'])
                 ->get()
                 ->map(fn(PurchaseOrder $p) => [
                     'id' => $p->id, 'amount' => (float) $p->total_amount, 'label' => $p->supplier?->name ?? '(no supplier)',
                     'supplier_id' => $p->supplier_id, 'total_amount' => (float) $p->total_amount,
                     'po_date' => $p->po_date->format('Y-m-d'), 'notes' => $p->notes,
+                    'items' => $p->items->map(fn($it) => [
+                        'item_name' => $it->item_name, 'qty' => (float) $it->qty, 'unit_price' => (float) $it->unit_price,
+                    ]),
                 ]),
             'invoice' => Invoice::where('pnl_period_id', $validated['pnl_period_id'])
                 ->where('pnl_line_item_id', $item->id)
                 ->where('invoice_date', $validated['date'])
-                ->with('customer:id,name')
+                ->with(['customer:id,name', 'items'])
                 ->get()
                 ->map(fn(Invoice $i) => [
                     'id' => $i->id, 'amount' => (float) $i->total_amount,
                     'label' => ($i->customer?->name ?? '(no customer)') . ' — #' . $i->invoice_no,
                     'invoice_no' => $i->invoice_no, 'customer_id' => $i->customer_id, 'total_amount' => (float) $i->total_amount,
                     'invoice_date' => $i->invoice_date->format('Y-m-d'), 'notes' => $i->notes,
+                    'items' => $i->items->map(fn($it) => [
+                        'item_name' => $it->item_name, 'qty' => (float) $it->qty, 'unit_price' => (float) $it->unit_price,
+                    ]),
                 ]),
             'salary' => SalaryEntry::where('pnl_period_id', $validated['pnl_period_id'])
                 ->where('pnl_line_item_id', $item->id)

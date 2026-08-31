@@ -36,6 +36,8 @@ class DatabaseSeeder extends Seeder
             'view contacts', 'manage contacts',
             'view salaries', 'manage salaries',
             'view partners', 'manage partners',
+            'view items', 'manage items',
+            'view suppliers', 'manage suppliers',
             'view activity log',
             'manage users', 'manage roles', 'manage settings',
         ];
@@ -53,6 +55,8 @@ class DatabaseSeeder extends Seeder
             'view contacts', 'manage contacts',
             'view salaries', 'manage salaries',
             'view partners', 'view activity log',
+            'view items', 'manage items',
+            'view suppliers', 'manage suppliers',
         ]);
         $viewer->givePermissionTo(['view dashboard', 'view pnl', 'view expenses', 'view invoices', 'view contacts']);
 
@@ -119,7 +123,7 @@ class DatabaseSeeder extends Seeder
              'items' => [
                  'Legal Fees', 'Audit Fee', 'Other Professional Fee',
                  'Taxes & Licenses', 'Bank Charges/Others', 'Meals', 'Toll Fee',
-                 'Office Supplies', 'Ice/ Cellophone', 'Rent', 'Representation',
+                 'Office Supplies', 'Ice/ Cellophone', 'Resiko', 'Rent', 'Representation',
                  'Telephone, Internet', 'Electricity & Water', 'Office Maintenance',
                  'Office Equipment', 'Staff Amenities/Last Pay', 'Transportation Expense',
                  'Bad Debts', 'Salaries and Wages', 'Employer Contribution/Separation Fee',

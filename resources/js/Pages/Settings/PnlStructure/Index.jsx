@@ -24,14 +24,14 @@ const ROLE_LABEL = {
 };
 
 function CategoryDialog({ open, onClose, category }) {
-    const { data, setData, processing, errors, reset } = useForm({
+    const { data, setData, put, processing, errors, reset } = useForm({
         name: category?.name ?? '',
         is_active: category?.is_active ?? true,
     });
 
     const submit = (e) => {
         e.preventDefault();
-        router.put(`/settings/pnl-categories/${category.id}`, data, {
+        put(`/settings/pnl-categories/${category.id}`, {
             onSuccess: () => { reset(); onClose(); },
         });
     };
@@ -66,7 +66,7 @@ function CategoryDialog({ open, onClose, category }) {
                 </DialogContent>
                 <Divider />
                 <DialogActions sx={{ px: 3, py: 2 }}>
-                    <Button onClick={onClose} color="inherit">Cancel</Button>
+                    <Button type="button" onClick={onClose} color="inherit">Cancel</Button>
                     <Button type="submit" variant="contained" disabled={processing}>Save Changes</Button>
                 </DialogActions>
             </form>
@@ -82,7 +82,7 @@ function LineItemDialog({ open, onClose, item, category, editableCategories, exp
         ? expenseCategories.find((ec) => ec.pnl_line_item_id === item.id)
         : null;
 
-    const { data, setData, processing, errors, reset } = useForm({
+    const { data, setData, post, put, processing, errors, reset } = useForm({
         pnl_category_id: item?.pnl_category_id ?? category?.id ?? '',
         name: item?.name ?? '',
         is_active: item?.is_active ?? true,
@@ -95,9 +95,9 @@ function LineItemDialog({ open, onClose, item, category, editableCategories, exp
         e.preventDefault();
         const opts = { onSuccess: () => { reset(); onClose(); } };
         if (editing) {
-            router.put(`/settings/pnl-line-items/${item.id}`, data, opts);
+            put(`/settings/pnl-line-items/${item.id}`, opts);
         } else {
-            router.post('/settings/pnl-line-items', data, opts);
+            post('/settings/pnl-line-items', opts);
         }
     };
 
@@ -193,7 +193,7 @@ function LineItemDialog({ open, onClose, item, category, editableCategories, exp
                 </DialogContent>
                 <Divider />
                 <DialogActions sx={{ px: 3, py: 2 }}>
-                    <Button onClick={onClose} color="inherit">Cancel</Button>
+                    <Button type="button" onClick={onClose} color="inherit">Cancel</Button>
                     <Button type="submit" variant="contained" disabled={processing}>
                         {editing ? 'Save Changes' : 'Add Line Item'}
                     </Button>

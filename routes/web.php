@@ -6,11 +6,14 @@ use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\ItemController;
 use App\Http\Controllers\PartnerController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PnlController;
 use App\Http\Controllers\PnlStructureController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\SalaryController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\WastageController;
 use Illuminate\Support\Facades\Route;
 
@@ -62,6 +65,24 @@ Route::middleware('auth')->group(function () {
     Route::post('/receivables', [InvoiceController::class, 'store'])->name('receivables.store');
     Route::put('/receivables/{invoice}', [InvoiceController::class, 'update'])->name('receivables.update');
     Route::delete('/receivables/{invoice}', [InvoiceController::class, 'destroy'])->name('receivables.destroy');
+
+    // Payments (against receivables — invoice-level payment records, optionally
+    // allocated across that invoice's specific line items)
+    Route::get('/payments', [PaymentController::class, 'index'])->name('payments.index');
+    Route::post('/payments', [PaymentController::class, 'store'])->name('payments.store');
+    Route::delete('/payments/{payment}', [PaymentController::class, 'destroy'])->name('payments.destroy');
+
+    // Items (product catalog for Receivables / Purchases line items)
+    Route::get('/items', [ItemController::class, 'index'])->name('items.index');
+    Route::post('/items', [ItemController::class, 'store'])->name('items.store');
+    Route::put('/items/{item}', [ItemController::class, 'update'])->name('items.update');
+    Route::delete('/items/{item}', [ItemController::class, 'destroy'])->name('items.destroy');
+
+    // Suppliers
+    Route::get('/suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
+    Route::post('/suppliers', [SupplierController::class, 'store'])->name('suppliers.store');
+    Route::put('/suppliers/{supplier}', [SupplierController::class, 'update'])->name('suppliers.update');
+    Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy'])->name('suppliers.destroy');
 
     // Activity Log
     Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log.index');

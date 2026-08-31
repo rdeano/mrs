@@ -28,9 +28,9 @@ function EntryForm({ open, onClose, periodId, categories, entry }) {
         e.preventDefault();
         const opts = { onSuccess: () => { reset(); onClose(); } };
         if (editing) {
-            router.put(`/expenses/${entry.id}`, data, opts);
+            put(`/expenses/${entry.id}`, opts);
         } else {
-            router.post('/expenses', data, opts);
+            post('/expenses', opts);
         }
     };
 
@@ -121,7 +121,7 @@ function EntryForm({ open, onClose, periodId, categories, entry }) {
                 </DialogContent>
                 <Divider />
                 <DialogActions sx={{ px: 3, py: 2 }}>
-                    <Button onClick={onClose} color="inherit">Cancel</Button>
+                    <Button type="button" onClick={onClose} color="inherit">Cancel</Button>
                     <Button type="submit" variant="contained" disabled={processing}>
                         {editing ? 'Save Changes' : 'Add Expense'}
                     </Button>

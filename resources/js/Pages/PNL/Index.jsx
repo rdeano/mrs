@@ -17,7 +17,7 @@ const SOURCE_PERMISSION = {
     wastage:  'manage expenses',
 };
 
-export default function PnlIndex({ periods, currentPeriod, categories, dates, expenseCategories, suppliers, customers, employees }) {
+export default function PnlIndex({ periods, currentPeriod, categories, dates, expenseCategories, suppliers, customers, employees, itemOptions }) {
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
     const [quickAdd, setQuickAdd] = useState(null);
     const { auth } = usePage().props;
@@ -131,6 +131,7 @@ export default function PnlIndex({ periods, currentPeriod, categories, dates, ex
                 suppliers={suppliers}
                 customers={customers}
                 employees={employees}
+                itemOptions={itemOptions}
             />
         </AppLayout>
     );

@@ -14,7 +14,7 @@ const TYPE_LABEL = { supplier: 'Supplier', customer: 'Customer', both: 'Both' };
 
 function ContactForm({ open, onClose, contact }) {
     const editing = Boolean(contact);
-    const { data, setData, processing, errors, reset } = useForm({
+    const { data, setData, post, put, processing, errors, reset } = useForm({
         name:            contact?.name            ?? '',
         type:            contact?.type            ?? 'supplier',
         phone:           contact?.phone            ?? '',
@@ -27,9 +27,9 @@ function ContactForm({ open, onClose, contact }) {
         e.preventDefault();
         const opts = { onSuccess: () => { reset(); onClose(); } };
         if (editing) {
-            router.put(`/contacts/${contact.id}`, data, opts);
+            put(`/contacts/${contact.id}`, opts);
         } else {
-            router.post('/contacts', data, opts);
+            post('/contacts', opts);
         }
     };
 
@@ -99,7 +99,7 @@ function ContactForm({ open, onClose, contact }) {
                 </DialogContent>
                 <Divider />
                 <DialogActions sx={{ px: 3, py: 2 }}>
-                    <Button onClick={onClose} color="inherit">Cancel</Button>
+                    <Button type="button" onClick={onClose} color="inherit">Cancel</Button>
                     <Button type="submit" variant="contained" disabled={processing}>
                         {editing ? 'Save Changes' : 'Add Contact'}
                     </Button>

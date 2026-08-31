@@ -13,7 +13,7 @@ import { peso, longDate as fmt } from '@/utils/format';
 
 function EntryForm({ open, onClose, periodId, employees, entry }) {
     const editing = Boolean(entry);
-    const { data, setData, processing, errors, reset } = useForm({
+    const { data, setData, post, put, processing, errors, reset } = useForm({
         pnl_period_id: periodId ?? '',
         employee_id:   entry?.employee_id  ?? '',
         amount:        entry?.amount        ?? '',
@@ -25,9 +25,9 @@ function EntryForm({ open, onClose, periodId, employees, entry }) {
         e.preventDefault();
         const opts = { onSuccess: () => { reset(); onClose(); } };
         if (editing) {
-            router.put(`/salaries/${entry.id}`, data, opts);
+            put(`/salaries/${entry.id}`, opts);
         } else {
-            router.post('/salaries', data, opts);
+            post('/salaries', opts);
         }
     };
 
@@ -91,7 +91,7 @@ function EntryForm({ open, onClose, periodId, employees, entry }) {
                 </DialogContent>
                 <Divider />
                 <DialogActions sx={{ px: 3, py: 2 }}>
-                    <Button onClick={onClose} color="inherit">Cancel</Button>
+                    <Button type="button" onClick={onClose} color="inherit">Cancel</Button>
                     <Button type="submit" variant="contained" disabled={processing}>
                         {editing ? 'Save Changes' : 'Add Entry'}
                     </Button>

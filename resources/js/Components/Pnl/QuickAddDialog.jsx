@@ -52,27 +52,120 @@ function ExpenseFields({ data, setData, errors, categoryName }) {
     );
 }
 
-function PurchaseFields({ data, setData, errors, suppliers }) {
+const emptyLineItem = () => ({ item_name: '', qty: '', unit_price: '' });
+
+function ItemRowsEditor({ data, setData, errors, itemOptions }) {
+    const setItem = (index, field, value) => {
+        setData('items', data.items.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+    };
+    const addItem = () => setData('items', [...data.items, emptyLineItem()]);
+    const removeItem = (index) => setData('items', data.items.filter((_, i) => i !== index));
+    const rowAmount = (row) => (Number(row.qty) || 0) * (Number(row.unit_price) || 0);
+    const total = data.items.reduce((sum, row) => sum + rowAmount(row), 0);
+
     return (
         <>
-            <Autocomplete
-                options={suppliers}
-                getOptionLabel={(s) => s.name}
-                isOptionEqualToValue={(o, v) => o.id === v.id}
-                value={suppliers.find((s) => s.id === data.supplier_id) ?? null}
-                onChange={(e, newValue) => setData('supplier_id', newValue?.id ?? '')}
-                renderInput={(params) => (
-                    <TextField {...params} label="Supplier" required error={!!errors.supplier_id} helperText={errors.supplier_id} autoFocus />
-                )}
-                fullWidth
-            />
+            <Typography variant="caption" color="text.secondary">ITEMS</Typography>
+
+            <Stack spacing={1.5}>
+                {data.items.map((row, index) => (
+                    <Stack key={index} direction="row" spacing={1.5} alignItems="flex-start">
+                        <Autocomplete
+                            freeSolo
+                            options={itemOptions}
+                            getOptionLabel={(opt) => (typeof opt === 'string' ? opt : opt.name)}
+                            value={row.item_name}
+                            onChange={(_, value) => {
+                                const next = data.items.map((r, i) => {
+                                    if (i !== index) return r;
+                                    if (value && typeof value === 'object') {
+                                        return {
+                                            ...r,
+                                            item_name: value.name,
+                                            unit_price: (value.default_price && !r.unit_price) ? value.default_price : r.unit_price,
+                                        };
+                                    }
+                                    return { ...r, item_name: value ?? '' };
+                                });
+                                setData('items', next);
+                            }}
+                            onInputChange={(_, value) => setItem(index, 'item_name', value)}
+                            sx={{ flex: 3 }}
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Item"
+                                    required
+                                    error={!!errors[`items.${index}.item_name`]}
+                                    helperText={errors[`items.${index}.item_name`]}
+                                />
+                            )}
+                        />
+                        <TextField
+                            label="Qty"
+                            type="number"
+                            value={row.qty}
+                            onChange={(e) => setItem(index, 'qty', e.target.value)}
+                            error={!!errors[`items.${index}.qty`]}
+                            helperText={errors[`items.${index}.qty`]}
+                            sx={{ flex: 1 }}
+                            required
+                            inputProps={{ step: 'any', min: 0 }}
+                        />
+                        <TextField
+                            label="Price"
+                            type="number"
+                            value={row.unit_price}
+                            onChange={(e) => setItem(index, 'unit_price', e.target.value)}
+                            error={!!errors[`items.${index}.unit_price`]}
+                            helperText={errors[`items.${index}.unit_price`]}
+                            sx={{ flex: 1 }}
+                            required
+                            inputProps={{ step: 'any', min: 0 }}
+                        />
+                        <TextField label="Amount" value={peso(rowAmount(row))} sx={{ flex: 1 }} disabled />
+                        <IconButton
+                            type="button"
+                            size="small"
+                            color="error"
+                            onClick={() => removeItem(index)}
+                            disabled={data.items.length === 1}
+                            sx={{ mt: 1 }}
+                        >
+                            <Delete fontSize="small" />
+                        </IconButton>
+                    </Stack>
+                ))}
+            </Stack>
+
+            <Box>
+                <Button type="button" size="small" startIcon={<Add />} onClick={addItem}>
+                    Add Item
+                </Button>
+            </Box>
+
+            <Stack direction="row" justifyContent="flex-end" spacing={2} sx={{ pr: 6 }}>
+                <Typography variant="body2" color="text.secondary">Total:</Typography>
+                <Typography variant="body2" fontWeight={700}>{peso(total)}</Typography>
+            </Stack>
+        </>
+    );
+}
+
+function PurchaseFields({ data, setData, errors, suppliers, itemOptions }) {
+    return (
+        <>
             <Stack direction="row" spacing={2}>
-                <TextField
-                    label="Total Amount" type="number" fullWidth required
-                    value={data.total_amount}
-                    onChange={(e) => setData('total_amount', e.target.value)}
-                    error={!!errors.total_amount} helperText={errors.total_amount}
-                    inputProps={{ step: 'any', min: 0 }}
+                <Autocomplete
+                    options={suppliers}
+                    getOptionLabel={(s) => s.name}
+                    isOptionEqualToValue={(o, v) => o.id === v.id}
+                    value={suppliers.find((s) => s.id === data.supplier_id) ?? null}
+                    onChange={(e, newValue) => setData('supplier_id', newValue?.id ?? '')}
+                    renderInput={(params) => (
+                        <TextField {...params} label="Supplier" required error={!!errors.supplier_id} helperText={errors.supplier_id} autoFocus />
+                    )}
+                    fullWidth
                 />
                 <TextField
                     label="Date" type="date" fullWidth required
@@ -82,11 +175,13 @@ function PurchaseFields({ data, setData, errors, suppliers }) {
                     InputLabelProps={{ shrink: true }}
                 />
             </Stack>
+
+            <ItemRowsEditor data={data} setData={setData} errors={errors} itemOptions={itemOptions} />
         </>
     );
 }
 
-function InvoiceFields({ data, setData, errors, customers }) {
+function InvoiceFields({ data, setData, errors, customers, itemOptions }) {
     return (
         <>
             <Stack direction="row" spacing={2}>
@@ -108,15 +203,6 @@ function InvoiceFields({ data, setData, errors, customers }) {
                     )}
                     fullWidth
                 />
-            </Stack>
-            <Stack direction="row" spacing={2}>
-                <TextField
-                    label="Total Amount" type="number" fullWidth required
-                    value={data.total_amount}
-                    onChange={(e) => setData('total_amount', e.target.value)}
-                    error={!!errors.total_amount} helperText={errors.total_amount}
-                    inputProps={{ step: 'any', min: 0 }}
-                />
                 <TextField
                     label="Date" type="date" fullWidth required
                     value={data.invoice_date}
@@ -125,6 +211,8 @@ function InvoiceFields({ data, setData, errors, customers }) {
                     InputLabelProps={{ shrink: true }}
                 />
             </Stack>
+
+            <ItemRowsEditor data={data} setData={setData} errors={errors} itemOptions={itemOptions} />
         </>
     );
 }
@@ -215,24 +303,44 @@ function WastageFields({ data, setData, errors }) {
 
 const INITIAL_DATA = {
     expense:  (periodId, date, e) => ({ pnl_period_id: periodId, description: e?.description ?? '', amount: e?.amount ?? '', expense_date: e?.expense_date ?? date, reference_no: e?.reference_no ?? '', paid_by: e?.paid_by ?? '', notes: e?.notes ?? '' }),
-    purchase: (periodId, date, e) => ({ pnl_period_id: periodId, supplier_id: e?.supplier_id ?? '', total_amount: e?.total_amount ?? '', po_date: e?.po_date ?? date, notes: e?.notes ?? '' }),
-    invoice:  (periodId, date, e) => ({ pnl_period_id: periodId, invoice_no: e?.invoice_no ?? '', customer_id: e?.customer_id ?? '', total_amount: e?.total_amount ?? '', invoice_date: e?.invoice_date ?? date, notes: e?.notes ?? '' }),
+    purchase: (periodId, date, e) => ({
+        pnl_period_id: periodId,
+        supplier_id: e?.supplier_id ?? '',
+        po_date: e?.po_date ?? date,
+        notes: e?.notes ?? '',
+        items: e?.items?.length
+            ? e.items.map((it) => ({ item_name: it.item_name, qty: it.qty, unit_price: it.unit_price }))
+            : [emptyLineItem()],
+    }),
+    invoice:  (periodId, date, e) => ({
+        pnl_period_id: periodId,
+        invoice_no: e?.invoice_no ?? '',
+        customer_id: e?.customer_id ?? '',
+        invoice_date: e?.invoice_date ?? date,
+        notes: e?.notes ?? '',
+        items: e?.items?.length
+            ? e.items.map((it) => ({ item_name: it.item_name, qty: it.qty, unit_price: it.unit_price }))
+            : [emptyLineItem()],
+    }),
     salary:   (periodId, date, e) => ({ pnl_period_id: periodId, employee_id: e?.employee_id ?? '', amount: e?.amount ?? '', payment_date: e?.payment_date ?? date, notes: e?.notes ?? '' }),
     wastage:  (periodId, date, e) => ({ pnl_period_id: periodId, item_name: e?.item_name ?? '', unit: e?.unit ?? 'kg', qty: e?.qty ?? '', cost_price: e?.cost_price ?? '', wastage_date: e?.wastage_date ?? date, notes: e?.notes ?? '' }),
 };
 
-function EntryFormPanel({ sourceType, entry, category, periodId, date, suppliers, customers, employees, onSaved, onCancel, showCancel }) {
-    const { data, setData, processing, errors, reset } = useForm(INITIAL_DATA[sourceType](periodId, date, entry));
+function EntryFormPanel({ sourceType, entry, category, periodId, date, suppliers, customers, employees, itemOptions, onSaved, onCancel, showCancel }) {
+    const { data, setData, post, put, transform, processing, errors, reset } = useForm(INITIAL_DATA[sourceType](periodId, date, entry));
+
+    if (sourceType === 'expense') {
+        transform((d) => ({ ...d, expense_category_id: category?.id }));
+    }
 
     const submit = (e) => {
         e.preventDefault();
-        const payload = sourceType === 'expense' ? { ...data, expense_category_id: category?.id } : data;
         const opts = { preserveScroll: true, onSuccess: () => { reset(); onSaved(); } };
 
         if (entry) {
-            router.put(`${ENDPOINT[sourceType]}/${entry.id}`, payload, opts);
+            put(`${ENDPOINT[sourceType]}/${entry.id}`, opts);
         } else {
-            router.post(ENDPOINT[sourceType], payload, opts);
+            post(ENDPOINT[sourceType], opts);
         }
     };
 
@@ -240,8 +348,8 @@ function EntryFormPanel({ sourceType, entry, category, periodId, date, suppliers
         <form onSubmit={submit}>
             <Stack spacing={2.5} pt={1}>
                 {sourceType === 'expense' && <ExpenseFields data={data} setData={setData} errors={errors} categoryName={category?.name} />}
-                {sourceType === 'purchase' && <PurchaseFields data={data} setData={setData} errors={errors} suppliers={suppliers} />}
-                {sourceType === 'invoice' && <InvoiceFields data={data} setData={setData} errors={errors} customers={customers} />}
+                {sourceType === 'purchase' && <PurchaseFields data={data} setData={setData} errors={errors} suppliers={suppliers} itemOptions={itemOptions} />}
+                {sourceType === 'invoice' && <InvoiceFields data={data} setData={setData} errors={errors} customers={customers} itemOptions={itemOptions} />}
                 {sourceType === 'salary' && <SalaryFields data={data} setData={setData} errors={errors} employees={employees} />}
                 {sourceType === 'wastage' && <WastageFields data={data} setData={setData} errors={errors} />}
 
@@ -256,7 +364,7 @@ function EntryFormPanel({ sourceType, entry, category, periodId, date, suppliers
             </Stack>
             <Divider sx={{ mt: 2.5 }} />
             <DialogActions sx={{ px: 0, py: 2 }}>
-                {showCancel && <Button onClick={onCancel} color="inherit">Back</Button>}
+                {showCancel && <Button type="button" onClick={onCancel} color="inherit">Back</Button>}
                 <Button type="submit" variant="contained" disabled={processing}>
                     {entry ? 'Save Changes' : 'Add Entry'}
                 </Button>
@@ -265,7 +373,7 @@ function EntryFormPanel({ sourceType, entry, category, periodId, date, suppliers
     );
 }
 
-export default function QuickAddDialog({ open, onClose, context, expenseCategories, suppliers, customers, employees }) {
+export default function QuickAddDialog({ open, onClose, context, expenseCategories, suppliers, customers, employees, itemOptions }) {
     const sourceType = context?.sourceType;
     const category = sourceType === 'expense'
         ? expenseCategories.find((ec) => ec.pnl_line_item_id === context.lineItemId)
@@ -361,6 +469,7 @@ export default function QuickAddDialog({ open, onClose, context, expenseCategori
                         suppliers={suppliers}
                         customers={customers}
                         employees={employees}
+                        itemOptions={itemOptions}
                         onSaved={refetch}
                         onCancel={() => setMode('list')}
                         showCancel={entries.length > 0}

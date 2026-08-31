@@ -11,7 +11,7 @@ import { Add, Edit } from '@mui/icons-material';
 
 function PartnerForm({ open, onClose, partner }) {
     const editing = Boolean(partner);
-    const { data, setData, processing, errors, reset } = useForm({
+    const { data, setData, post, put, processing, errors, reset } = useForm({
         name: partner?.name ?? '',
         share_percentage: partner?.share_percentage ?? '',
         is_active: partner?.is_active ?? true,
@@ -21,9 +21,9 @@ function PartnerForm({ open, onClose, partner }) {
         e.preventDefault();
         const opts = { onSuccess: () => { reset(); onClose(); } };
         if (editing) {
-            router.put(`/partners/${partner.id}`, data, opts);
+            put(`/partners/${partner.id}`, opts);
         } else {
-            router.post('/partners', data, opts);
+            post('/partners', opts);
         }
     };
 
@@ -64,7 +64,7 @@ function PartnerForm({ open, onClose, partner }) {
                 </DialogContent>
                 <Divider />
                 <DialogActions sx={{ px: 3, py: 2 }}>
-                    <Button onClick={onClose} color="inherit">Cancel</Button>
+                    <Button type="button" onClick={onClose} color="inherit">Cancel</Button>
                     <Button type="submit" variant="contained" disabled={processing}>
                         {editing ? 'Save Changes' : 'Add Partner'}
                     </Button>
