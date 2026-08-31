@@ -17,6 +17,7 @@ import {
     Inventory2 as ItemIcon,
     People as ContactIcon,
     LocalShipping as SupplierIcon,
+    Storefront as CustomerIcon,
     PersonOutline as EmployeeIcon,
     Handshake as PartnerIcon,
     DeleteOutline as WastageIcon,
@@ -56,6 +57,7 @@ const NAV_GROUPS = [
         items: [
             { label: 'Contacts', href: '/contacts', icon: <ContactIcon fontSize="small" />, permission: 'view contacts' },
             { label: 'Suppliers', href: '/suppliers', icon: <SupplierIcon fontSize="small" />, permission: 'view suppliers' },
+            { label: 'Customers', href: '/customers', icon: <CustomerIcon fontSize="small" />, permission: 'view customers' },
             { label: 'Partners', href: '/partners', icon: <PartnerIcon fontSize="small" />, permission: 'view partners' },
         ],
     },

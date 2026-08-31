@@ -38,6 +38,7 @@ class DatabaseSeeder extends Seeder
             'view partners', 'manage partners',
             'view items', 'manage items',
             'view suppliers', 'manage suppliers',
+            'view customers', 'manage customers',
             'view activity log',
             'manage users', 'manage roles', 'manage settings',
         ];
@@ -57,6 +58,7 @@ class DatabaseSeeder extends Seeder
             'view partners', 'view activity log',
             'view items', 'manage items',
             'view suppliers', 'manage suppliers',
+            'view customers', 'manage customers',
         ]);
         $viewer->givePermissionTo(['view dashboard', 'view pnl', 'view expenses', 'view invoices', 'view contacts']);
 
