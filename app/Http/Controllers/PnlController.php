@@ -177,7 +177,7 @@ class PnlController extends Controller
             $partners = Partner::where('is_active', true)->orderByDesc('share_percentage')->get();
 
             // ── Step 4: assemble final categories for the view ───────────
-            $categories = $raw->map(function ($cat) use ($dates, $gpbwByDate, $gpByDate, $opByDate, $birByDate, $birSavingsPct, $npByDate, $partners) {
+            $categories = $raw->map(function ($cat) use ($dates, $gpbwByDate, $gpByDate, $opByDate, $preBirByDate, $birByDate, $birSavingsPct, $npByDate, $partners) {
                 // For calculated categories, override date_totals & total
                 if ($cat['type'] === 'gross_profit') {
                     // Inject a virtual "Gross Profit before Wastage" row before Wastages
@@ -213,9 +213,24 @@ class PnlController extends Controller
                 }
 
                 if ($cat['type'] === 'net_profit') {
-                    // Inject a virtual "BIR & Savings" deduction row before the partner
-                    // split, same pattern as Gross Profit before Wastage → Wastages, so
-                    // the grid shows exactly how the pre-BIR profit becomes the net figure.
+                    // Inject virtual "Net Profit before BIR & Savings" and "BIR & Savings"
+                    // rows before the partner split, same pattern as Gross Profit before
+                    // Wastage → Wastages, so the grid shows both the pre-tax reference
+                    // figure and exactly how it becomes the net figure.
+                    $preBirEntries = collect($dates)
+                        ->mapWithKeys(fn($d) => [$d => $preBirByDate[$d]])
+                        ->filter(fn($v) => $v != 0);
+
+                    $virtualPreBirRow = [
+                        'id'           => 'pre-bir-profit',
+                        'name'         => 'Net Profit before BIR & Savings',
+                        'is_auto'      => true,
+                        'is_subtotal'  => true,
+                        'source_label' => null,
+                        'source_link'  => null,
+                        'entries'      => $preBirEntries,
+                    ];
+
                     $birEntries = collect($dates)
                         ->mapWithKeys(fn($d) => [$d => $birByDate[$d]])
                         ->filter(fn($v) => $v != 0);
@@ -250,7 +265,7 @@ class PnlController extends Controller
                         ];
                     });
 
-                    $lineItems = collect([$virtualBirRow])->concat($partnerRows);
+                    $lineItems = collect([$virtualPreBirRow, $virtualBirRow])->concat($partnerRows);
 
                     return array_merge($cat, [
                         'line_items'  => $lineItems,
