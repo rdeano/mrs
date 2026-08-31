@@ -19,6 +19,7 @@ import {
     LocalShipping as SupplierIcon,
     Storefront as CustomerIcon,
     PersonOutline as EmployeeIcon,
+    Badge as EmployeesIcon,
     Handshake as PartnerIcon,
     DeleteOutline as WastageIcon,
     ReportProblemOutlined as ResekoIcon,
@@ -46,6 +47,7 @@ const NAV_GROUPS = [
             { label: 'Wastages',  href: '/wastages',  icon: <WastageIcon fontSize="small" />,  permission: 'view expenses' },
             { label: 'Reseko',    href: '/reseko',    icon: <ResekoIcon fontSize="small" />,   permission: 'view expenses' },
             { label: 'Salaries',  href: '/salaries',  icon: <EmployeeIcon fontSize="small" />, permission: 'view salaries' },
+            { label: 'Employees', href: '/employees', icon: <EmployeesIcon fontSize="small" />, permission: 'view salaries' },
         ],
     },
     {

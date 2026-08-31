@@ -17,6 +17,7 @@ use App\Models\PurchaseItem;
 use App\Models\PurchaseOrder;
 use App\Models\ResekoEntry;
 use App\Models\SalaryEntry;
+use App\Models\Setting;
 use App\Models\Supplier;
 use App\Models\WastageEntry;
 use App\Services\PnlRollupService;
@@ -43,6 +44,7 @@ class PnlController extends Controller
 
         $categories = [];
         $dates      = [];
+        $profitDistribution = null;
 
         if ($currentPeriod) {
             $dates = $this->getPeriodDates($currentPeriod);
@@ -141,6 +143,20 @@ class PnlController extends Controller
                     - ($oexByDate[$d] ?? 0);
             }
 
+            // Profit distribution: Net Profit, less BIR & Savings (dynamic %), split 3 ways.
+            $netProfitTotal   = array_sum($npByDate);
+            $birSavingsPct    = (float) Setting::get('bir_savings_percent', 25);
+            $birSavingsAmount = round($netProfitTotal * $birSavingsPct / 100, 2);
+            $afterBirSavings  = $netProfitTotal - $birSavingsAmount;
+
+            $profitDistribution = [
+                'net_profit'          => $netProfitTotal,
+                'bir_savings_percent' => $birSavingsPct,
+                'bir_savings_amount'  => $birSavingsAmount,
+                'after_bir_savings'   => $afterBirSavings,
+                'per_share'           => round($afterBirSavings / 3, 2),
+            ];
+
             // Partner profit split — each active partner's cut of net profit, per date.
             // Not stored anywhere; computed live from net profit, same as the xlsx does.
             $partners = Partner::where('is_active', true)->orderByDesc('share_percentage')->get();
@@ -226,8 +242,20 @@ class PnlController extends Controller
 
         return Inertia::render('PNL/Index', compact(
             'periods', 'currentPeriod', 'categories', 'dates',
-            'expenseCategories', 'suppliers', 'customers', 'employees', 'itemOptions', 'purchaseLines'
+            'expenseCategories', 'suppliers', 'customers', 'employees', 'itemOptions', 'purchaseLines',
+            'profitDistribution'
         ));
+    }
+
+    public function updateBirSavingsPercent(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'bir_savings_percent' => 'required|numeric|min:0|max:100',
+        ]);
+
+        Setting::set('bir_savings_percent', $validated['bir_savings_percent']);
+
+        return back()->with('success', 'BIR & Savings percentage updated.');
     }
 
     /**

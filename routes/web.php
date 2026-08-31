@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ItemController;
@@ -40,6 +41,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/pnl/entries/batch', [PnlController::class, 'storeEntriesBatch'])->name('pnl.entries.batch');
     Route::get('/pnl/cell-entries', [PnlController::class, 'cellEntries'])->name('pnl.cell-entries');
     Route::post('/pnl/periods/{period}/toggle-close', [PnlController::class, 'toggleClose'])->name('pnl.periods.toggle-close');
+    Route::put('/pnl/bir-savings-percent', [PnlController::class, 'updateBirSavingsPercent'])->name('pnl.bir-savings-percent.update');
     Route::get('/pnl/periods/create', [PnlController::class, 'createPeriod'])->name('pnl.periods.create');
     Route::post('/pnl/periods', [PnlController::class, 'storePeriod'])->name('pnl.periods.store');
     Route::delete('/pnl/periods/{period}', [PnlController::class, 'destroyPeriod'])->name('pnl.periods.destroy');
@@ -112,6 +114,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/salaries', [SalaryController::class, 'store'])->name('salaries.store');
     Route::put('/salaries/{salary}', [SalaryController::class, 'update'])->name('salaries.update');
     Route::delete('/salaries/{salary}', [SalaryController::class, 'destroy'])->name('salaries.destroy');
+
+    // Employees
+    Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
+    Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
+    Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
+    Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
 
     // Partners
     Route::get('/partners', [PartnerController::class, 'index'])->name('partners.index');
