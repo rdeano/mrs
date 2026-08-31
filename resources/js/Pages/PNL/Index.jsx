@@ -69,7 +69,12 @@ function ProfitDistribution({ distribution, canEdit }) {
                                 <Typography variant="body2" color="text.secondary">
                                     ({Number(distribution.bir_savings_percent)}%)
                                 </Typography>
-                                {canEdit && (
+                                {distribution.is_locked ? (
+                                    <Stack direction="row" alignItems="center" spacing={0.25} title="Locked in when this period was closed — changing the rate now won't affect it">
+                                        <Lock sx={{ fontSize: 13, color: 'text.disabled' }} />
+                                        <Typography variant="caption" color="text.disabled">locked at close</Typography>
+                                    </Stack>
+                                ) : canEdit && (
                                     <IconButton size="small" onClick={() => setEditing(true)}>
                                         <Edit sx={{ fontSize: 14 }} />
                                     </IconButton>

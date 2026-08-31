@@ -12,7 +12,7 @@ class PnlPeriod extends Model
 {
     use LogsActivity, SoftDeletes;
 
-    protected $fillable = ['name', 'start_date', 'end_date', 'is_closed', 'notes'];
+    protected $fillable = ['name', 'start_date', 'end_date', 'is_closed', 'bir_savings_percent', 'notes'];
 
     protected function casts(): array
     {

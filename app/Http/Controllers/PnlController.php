@@ -36,7 +36,7 @@ class PnlController extends Controller
 
     public function index(Request $request): Response
     {
-        $periods = PnlPeriod::orderByDesc('start_date')->get(['id', 'name', 'start_date', 'end_date', 'is_closed']);
+        $periods = PnlPeriod::orderByDesc('start_date')->get(['id', 'name', 'start_date', 'end_date', 'is_closed', 'bir_savings_percent']);
 
         $currentPeriod = $request->period_id
             ? PnlPeriod::find($request->period_id)
@@ -144,8 +144,11 @@ class PnlController extends Controller
             }
 
             // Profit distribution: Net Profit, less BIR & Savings (dynamic %), split 3 ways.
+            // A closed period uses its own locked-in rate (set at close time) so
+            // changing the live rate later never rewrites a closed period's numbers.
             $netProfitTotal   = array_sum($npByDate);
-            $birSavingsPct    = (float) Setting::get('bir_savings_percent', 25);
+            $isLocked         = $currentPeriod->bir_savings_percent !== null;
+            $birSavingsPct    = $isLocked ? (float) $currentPeriod->bir_savings_percent : (float) Setting::get('bir_savings_percent', 25);
             $birSavingsAmount = round($netProfitTotal * $birSavingsPct / 100, 2);
             $afterBirSavings  = $netProfitTotal - $birSavingsAmount;
 
@@ -155,6 +158,7 @@ class PnlController extends Controller
                 'bir_savings_amount'  => $birSavingsAmount,
                 'after_bir_savings'   => $afterBirSavings,
                 'per_share'           => round($afterBirSavings / 3, 2),
+                'is_locked'           => $isLocked,
             ];
 
             // Partner profit split — each active partner's cut of net profit, per date.
@@ -408,7 +412,17 @@ class PnlController extends Controller
 
     public function toggleClose(PnlPeriod $period): RedirectResponse
     {
-        $period->update(['is_closed' => ! $period->is_closed]);
+        $closing = ! $period->is_closed;
+
+        $period->update([
+            'is_closed'           => $closing,
+            // Lock in the rate in effect right now when closing, so changing
+            // the global rate later never rewrites this period's numbers.
+            // Reopening clears it — the period follows the live rate again
+            // until it's closed once more.
+            'bir_savings_percent' => $closing ? (float) Setting::get('bir_savings_percent', 25) : null,
+        ]);
+
         return back()->with('success', $period->is_closed ? 'Period closed.' : 'Period reopened.');
     }
 
