@@ -14,6 +14,7 @@ const ENDPOINT = {
     invoice:  '/receivables',
     salary:   '/salaries',
     wastage:  '/wastages',
+    reseko:   '/reseko',
 };
 
 function ExpenseFields({ data, setData, errors, categoryName }) {
@@ -301,6 +302,71 @@ function WastageFields({ data, setData, errors }) {
     );
 }
 
+function ResekoFields({ data, setData, errors, purchaseLines, selectedLine, setSelectedLine }) {
+    const costPrice = selectedLine?.unit_price ?? 0;
+    const computed = Number(data.qty || 0) * Number(costPrice || 0);
+    return (
+        <>
+            <Autocomplete
+                options={purchaseLines}
+                getOptionLabel={(opt) => opt.label ?? ''}
+                isOptionEqualToValue={(o, v) => o.id === v.id}
+                value={selectedLine}
+                onChange={(_, value) => {
+                    setSelectedLine(value);
+                    setData('purchase_item_id', value?.id ?? '');
+                }}
+                renderInput={(params) => (
+                    <TextField
+                        {...params}
+                        label="Purchase Line"
+                        required
+                        autoFocus
+                        error={!!errors.purchase_item_id}
+                        helperText={errors.purchase_item_id || 'Which purchase this shortage was found against'}
+                    />
+                )}
+                fullWidth
+            />
+
+            {selectedLine && (
+                <Box sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider', borderRadius: 2, px: 2, py: 1.5 }}>
+                    <Stack direction="row" justifyContent="space-between">
+                        <Typography variant="body2" color="text.secondary">Purchased</Typography>
+                        <Typography variant="body2" fontWeight={600}>
+                            {Number(selectedLine.qty).toLocaleString()} {selectedLine.unit} @ {peso(selectedLine.unit_price)}/unit
+                        </Typography>
+                    </Stack>
+                </Box>
+            )}
+
+            <TextField
+                label="Qty Short" type="number" fullWidth required
+                value={data.qty}
+                onChange={(e) => setData('qty', e.target.value)}
+                error={!!errors.qty} helperText={errors.qty || 'Negative = more arrived than purchased'}
+                inputProps={{ step: 'any' }}
+            />
+
+            {selectedLine && computed !== 0 && (
+                <Box sx={{ bgcolor: 'error.50', border: '1px solid', borderColor: 'error.200', borderRadius: 2, px: 2, py: 1.5 }}>
+                    <Stack direction="row" justifyContent="space-between">
+                        <Typography variant="body2" color="error.dark">Computed Reseko Amount</Typography>
+                        <Typography variant="body2" fontWeight={700} color="error.main">{peso(computed)}</Typography>
+                    </Stack>
+                </Box>
+            )}
+            <TextField
+                label="Date" type="date" fullWidth required
+                value={data.reseko_date}
+                onChange={(e) => setData('reseko_date', e.target.value)}
+                error={!!errors.reseko_date} helperText={errors.reseko_date}
+                InputLabelProps={{ shrink: true }}
+            />
+        </>
+    );
+}
+
 const INITIAL_DATA = {
     expense:  (periodId, date, e) => ({ pnl_period_id: periodId, description: e?.description ?? '', amount: e?.amount ?? '', expense_date: e?.expense_date ?? date, reference_no: e?.reference_no ?? '', paid_by: e?.paid_by ?? '', notes: e?.notes ?? '' }),
     purchase: (periodId, date, e) => ({
@@ -324,10 +390,17 @@ const INITIAL_DATA = {
     }),
     salary:   (periodId, date, e) => ({ pnl_period_id: periodId, employee_id: e?.employee_id ?? '', amount: e?.amount ?? '', payment_date: e?.payment_date ?? date, notes: e?.notes ?? '' }),
     wastage:  (periodId, date, e) => ({ pnl_period_id: periodId, item_name: e?.item_name ?? '', unit: e?.unit ?? 'kg', qty: e?.qty ?? '', cost_price: e?.cost_price ?? '', wastage_date: e?.wastage_date ?? date, notes: e?.notes ?? '' }),
+    reseko:   (periodId, date, e) => ({ pnl_period_id: periodId, purchase_item_id: e?.purchase_item_id ?? '', qty: e?.qty ?? '', reseko_date: e?.reseko_date ?? date, notes: e?.notes ?? '' }),
 };
 
-function EntryFormPanel({ sourceType, entry, category, periodId, date, suppliers, customers, employees, itemOptions, onSaved, onCancel, showCancel }) {
+function EntryFormPanel({ sourceType, entry, category, periodId, date, suppliers, customers, employees, itemOptions, purchaseLines, onSaved, onCancel, showCancel }) {
     const { data, setData, post, put, transform, processing, errors, reset } = useForm(INITIAL_DATA[sourceType](periodId, date, entry));
+
+    const [selectedLine, setSelectedLine] = useState(() => {
+        if (sourceType !== 'reseko' || !entry?.purchase_item_id) return null;
+        return (purchaseLines || []).find((pl) => pl.id === entry.purchase_item_id)
+            ?? { id: entry.purchase_item_id, item_name: entry.item_name, unit: entry.unit, qty: null, unit_price: entry.cost_price, label: `${entry.supplier_name ?? ''} — ${entry.item_name}` };
+    });
 
     if (sourceType === 'expense') {
         transform((d) => ({ ...d, expense_category_id: category?.id }));
@@ -352,6 +425,12 @@ function EntryFormPanel({ sourceType, entry, category, periodId, date, suppliers
                 {sourceType === 'invoice' && <InvoiceFields data={data} setData={setData} errors={errors} customers={customers} itemOptions={itemOptions} />}
                 {sourceType === 'salary' && <SalaryFields data={data} setData={setData} errors={errors} employees={employees} />}
                 {sourceType === 'wastage' && <WastageFields data={data} setData={setData} errors={errors} />}
+                {sourceType === 'reseko' && (
+                    <ResekoFields
+                        data={data} setData={setData} errors={errors}
+                        purchaseLines={purchaseLines} selectedLine={selectedLine} setSelectedLine={setSelectedLine}
+                    />
+                )}
 
                 <TextField
                     label="Notes"
@@ -373,7 +452,7 @@ function EntryFormPanel({ sourceType, entry, category, periodId, date, suppliers
     );
 }
 
-export default function QuickAddDialog({ open, onClose, context, expenseCategories, suppliers, customers, employees, itemOptions }) {
+export default function QuickAddDialog({ open, onClose, context, expenseCategories, suppliers, customers, employees, itemOptions, purchaseLines }) {
     const sourceType = context?.sourceType;
     const category = sourceType === 'expense'
         ? expenseCategories.find((ec) => ec.pnl_line_item_id === context.lineItemId)
@@ -470,6 +549,7 @@ export default function QuickAddDialog({ open, onClose, context, expenseCategori
                         customers={customers}
                         employees={employees}
                         itemOptions={itemOptions}
+                        purchaseLines={purchaseLines}
                         onSaved={refetch}
                         onCancel={() => setMode('list')}
                         showCancel={entries.length > 0}

@@ -13,6 +13,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PnlController;
 use App\Http\Controllers\PnlStructureController;
 use App\Http\Controllers\PurchaseController;
+use App\Http\Controllers\ResekoController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\WastageController;
@@ -48,6 +49,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/wastages', [WastageController::class, 'store'])->name('wastages.store');
     Route::put('/wastages/{wastage}', [WastageController::class, 'update'])->name('wastages.update');
     Route::delete('/wastages/{wastage}', [WastageController::class, 'destroy'])->name('wastages.destroy');
+
+    // Reseko (purchased-vs-delivered shrinkage, valued at cost)
+    Route::get('/reseko', [ResekoController::class, 'index'])->name('reseko.index');
+    Route::post('/reseko', [ResekoController::class, 'store'])->name('reseko.store');
+    Route::put('/reseko/{reseko}', [ResekoController::class, 'update'])->name('reseko.update');
+    Route::delete('/reseko/{reseko}', [ResekoController::class, 'destroy'])->name('reseko.destroy');
 
     // Expenses
     Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');

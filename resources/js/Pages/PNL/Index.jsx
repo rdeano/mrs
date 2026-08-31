@@ -15,9 +15,10 @@ const SOURCE_PERMISSION = {
     invoice:  'manage invoices',
     salary:   'manage salaries',
     wastage:  'manage expenses',
+    reseko:   'manage expenses',
 };
 
-export default function PnlIndex({ periods, currentPeriod, categories, dates, expenseCategories, suppliers, customers, employees, itemOptions }) {
+export default function PnlIndex({ periods, currentPeriod, categories, dates, expenseCategories, suppliers, customers, employees, itemOptions, purchaseLines }) {
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
     const [quickAdd, setQuickAdd] = useState(null);
     const { auth } = usePage().props;
@@ -132,6 +133,7 @@ export default function PnlIndex({ periods, currentPeriod, categories, dates, ex
                 customers={customers}
                 employees={employees}
                 itemOptions={itemOptions}
+                purchaseLines={purchaseLines}
             />
         </AppLayout>
     );

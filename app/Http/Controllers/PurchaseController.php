@@ -6,6 +6,7 @@ use App\Models\Item;
 use App\Models\PnlLineItem;
 use App\Models\PnlPeriod;
 use App\Models\PurchaseOrder;
+use App\Models\ResekoEntry;
 use App\Models\Supplier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -92,6 +93,11 @@ class PurchaseController extends Controller
         ]);
 
         abort_if($purchase->period?->is_closed, 403, 'Period is closed.');
+        abort_if(
+            ResekoEntry::whereIn('purchase_item_id', $purchase->items()->pluck('id'))->exists(),
+            422,
+            'This purchase has Reseko entries recorded against its items — delete them first before changing the items.'
+        );
 
         DB::transaction(function () use ($purchase, $validated) {
             $lineItems = array_map(fn ($row) => [

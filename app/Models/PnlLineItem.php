@@ -57,6 +57,11 @@ class PnlLineItem extends Model
         return $this->hasMany(WastageEntry::class);
     }
 
+    public function resekoEntries(): HasMany
+    {
+        return $this->hasMany(ResekoEntry::class);
+    }
+
     public function salaryEntries(): HasMany
     {
         return $this->hasMany(SalaryEntry::class);
@@ -75,6 +80,7 @@ class PnlLineItem extends Model
             'purchase' => ['type' => 'purchase', 'label' => 'Purchases', 'link' => '/purchases'],
             'invoice'  => ['type' => 'invoice',  'label' => 'Receivables', 'link' => '/receivables'],
             'salary'   => ['type' => 'salary',   'label' => 'Salaries',  'link' => '/salaries'],
+            'reseko'   => ['type' => 'reseko',   'label' => 'Reseko',    'link' => '/reseko'],
         ];
 
         if ($this->auto_source && isset($fixed[$this->auto_source])) {

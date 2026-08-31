@@ -9,6 +9,7 @@ use App\Models\PnlEntry;
 use App\Models\PnlLineItem;
 use App\Models\PnlPeriod;
 use App\Models\PurchaseOrder;
+use App\Models\ResekoEntry;
 use App\Models\SalaryEntry;
 use App\Models\WastageEntry;
 use Illuminate\Support\Collection;
@@ -70,8 +71,14 @@ class PnlRollupService
             ->groupBy('pnl_line_item_id')
             ->map(fn($rows) => $this->sumByDate($rows, 'payment_date'));
 
+        $resekoSums = ResekoEntry::where('pnl_period_id', $period->id)
+            ->whereNotNull('pnl_line_item_id')
+            ->get()
+            ->groupBy('pnl_line_item_id')
+            ->map(fn($rows) => $this->sumByDate($rows, 'reseko_date'));
+
         return $lineItems->mapWithKeys(function (PnlLineItem $item) use (
-            $dates, $manualByItem, $expenseSums, $purchaseSums, $invoiceSums, $wastageSums, $salarySums
+            $dates, $manualByItem, $expenseSums, $purchaseSums, $invoiceSums, $wastageSums, $salarySums, $resekoSums
         ) {
             $auto = $item->autoSource();
 
@@ -81,6 +88,7 @@ class PnlRollupService
                 'invoice'  => $invoiceSums->get($item->id),
                 'wastage'  => $wastageSums->get($item->id),
                 'salary'   => $salarySums->get($item->id),
+                'reseko'   => $resekoSums->get($item->id),
                 default    => null,
             };
 

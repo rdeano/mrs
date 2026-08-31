@@ -13,7 +13,9 @@ use App\Models\PnlCategory;
 use App\Models\PnlEntry;
 use App\Models\PnlLineItem;
 use App\Models\PnlPeriod;
+use App\Models\PurchaseItem;
 use App\Models\PurchaseOrder;
+use App\Models\ResekoEntry;
 use App\Models\SalaryEntry;
 use App\Models\Supplier;
 use App\Models\WastageEntry;
@@ -220,10 +222,11 @@ class PnlController extends Controller
         $customers         = Customer::orderBy('name')->get(['id', 'name']);
         $employees         = Employee::where('is_active', true)->orderBy('name')->get(['id', 'name', 'role']);
         $itemOptions       = Item::where('is_active', true)->orderBy('name')->get(['id', 'name', 'unit', 'default_price']);
+        $purchaseLines     = PurchaseItem::pickerOptionsForPeriod($currentPeriod?->id);
 
         return Inertia::render('PNL/Index', compact(
             'periods', 'currentPeriod', 'categories', 'dates',
-            'expenseCategories', 'suppliers', 'customers', 'employees', 'itemOptions'
+            'expenseCategories', 'suppliers', 'customers', 'employees', 'itemOptions', 'purchaseLines'
         ));
     }
 
@@ -297,6 +300,18 @@ class PnlController extends Controller
                     'id' => $w->id, 'amount' => (float) $w->amount, 'label' => $w->item_name,
                     'item_name' => $w->item_name, 'unit' => $w->unit, 'qty' => (float) $w->qty,
                     'cost_price' => (float) $w->cost_price, 'wastage_date' => $w->wastage_date->format('Y-m-d'), 'notes' => $w->notes,
+                ]),
+            'reseko' => ResekoEntry::where('pnl_period_id', $validated['pnl_period_id'])
+                ->where('pnl_line_item_id', $item->id)
+                ->where('reseko_date', $validated['date'])
+                ->with('purchaseItem.purchaseOrder.supplier:id,name')
+                ->get()
+                ->map(fn(ResekoEntry $r) => [
+                    'id' => $r->id, 'amount' => (float) $r->amount, 'label' => $r->item_name,
+                    'item_name' => $r->item_name, 'unit' => $r->unit, 'qty' => (float) $r->qty,
+                    'cost_price' => (float) $r->cost_price, 'reseko_date' => $r->reseko_date->format('Y-m-d'), 'notes' => $r->notes,
+                    'purchase_item_id' => $r->purchase_item_id,
+                    'supplier_name' => $r->purchaseItem?->purchaseOrder?->supplier?->name,
                 ]),
             default => collect(),
         };
