@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\Item;
 use App\Models\PnlLineItem;
 use App\Models\PnlPeriod;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,8 +28,8 @@ class InvoiceController extends Controller
         $entries = $currentPeriod
             ? Invoice::with(['customer:id,name', 'items'])
                 ->where('pnl_period_id', $currentPeriod->id)
-                ->orderBy('invoice_date')
-                ->orderBy('id')
+                ->orderByRaw('CAST(invoice_no AS UNSIGNED) asc')
+                ->orderBy('invoice_no')
                 ->get()
             : collect();
 
@@ -71,6 +72,7 @@ class InvoiceController extends Controller
                 'customer_id'      => $validated['customer_id'],
                 'invoice_no'       => $validated['invoice_no'],
                 'invoice_date'     => $validated['invoice_date'],
+                'due_date'         => $this->computeDueDate($validated['invoice_date'], $validated['customer_id']),
                 'notes'            => $validated['notes'] ?? null,
                 'pnl_line_item_id' => $this->salesLineItemId(),
                 'status'           => 'sent',
@@ -114,6 +116,7 @@ class InvoiceController extends Controller
                 'customer_id'  => $validated['customer_id'],
                 'invoice_no'   => $validated['invoice_no'],
                 'invoice_date' => $validated['invoice_date'],
+                'due_date'     => $this->computeDueDate($validated['invoice_date'], $validated['customer_id']),
                 'notes'        => $validated['notes'] ?? null,
                 'total_amount' => $total,
             ]);
@@ -135,5 +138,16 @@ class InvoiceController extends Controller
     private function salesLineItemId(): ?int
     {
         return PnlLineItem::where('auto_source', 'invoice')->value('id');
+    }
+
+    /**
+     * due_date is always derived, not entered by hand: invoice_date plus
+     * that customer's payment terms (falling back to 30 days if unset).
+     */
+    private function computeDueDate(string $invoiceDate, int $customerId): string
+    {
+        $days = Customer::whereKey($customerId)->value('payment_terms_days') ?? 30;
+
+        return Carbon::parse($invoiceDate)->addDays($days)->toDateString();
     }
 }

@@ -12,13 +12,18 @@ class Payment extends Model
 {
     use LogsActivity;
 
-    protected $fillable = ['invoice_id', 'payment_date', 'amount', 'method', 'reference_no', 'notes'];
+    protected $fillable = [
+        'invoice_id', 'payment_date', 'amount', 'tax_withheld', 'method', 'reference_no',
+        'bank_name', 'check_no', 'check_date', 'notes',
+    ];
 
     protected function casts(): array
     {
         return [
             'payment_date' => 'date:Y-m-d',
             'amount' => 'decimal:4',
+            'tax_withheld' => 'decimal:4',
+            'check_date' => 'date:Y-m-d',
         ];
     }
 

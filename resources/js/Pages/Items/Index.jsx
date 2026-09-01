@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -9,6 +9,7 @@ import {
 } from '@mui/material';
 import { Add, Delete, Edit } from '@mui/icons-material';
 import { peso } from '@/utils/format';
+import SearchField from '@/Components/Shared/SearchField';
 
 function ItemForm({ open, onClose, item }) {
     const editing = Boolean(item);
@@ -97,12 +98,22 @@ export default function ItemsIndex({ items }) {
     const canEdit = auth.permissions.includes('manage items');
     const [formOpen, setFormOpen] = useState(false);
     const [editItem, setEditItem] = useState(null);
+    const [search, setSearch] = useState('');
 
     const handleDelete = (id) => {
         if (confirm('Delete this item?')) {
             router.delete(`/items/${id}`);
         }
     };
+
+    const filteredItems = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return items;
+        return items.filter((it) => (
+            it.name?.toLowerCase().includes(q)
+            || it.unit?.toLowerCase().includes(q)
+        ));
+    }, [items, search]);
 
     return (
         <AppLayout title="Items">
@@ -115,11 +126,14 @@ export default function ItemsIndex({ items }) {
                         Product catalog used for Receivables and Purchases line items.
                     </Typography>
                 </Box>
-                {canEdit && (
-                    <Button variant="contained" startIcon={<Add />} onClick={() => { setEditItem(null); setFormOpen(true); }}>
-                        Add Item
-                    </Button>
-                )}
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <SearchField value={search} onChange={setSearch} placeholder="Search name, unit..." />
+                    {canEdit && (
+                        <Button variant="contained" startIcon={<Add />} onClick={() => { setEditItem(null); setFormOpen(true); }}>
+                            Add Item
+                        </Button>
+                    )}
+                </Stack>
             </Stack>
 
             <Card>
@@ -136,14 +150,14 @@ export default function ItemsIndex({ items }) {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {items.length === 0 ? (
+                                {filteredItems.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={5} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                                            No items found.
+                                            {search ? 'No items match your search.' : 'No items found.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    items.map((it) => (
+                                    filteredItems.map((it) => (
                                         <TableRow key={it.id} hover>
                                             <TableCell fontWeight={500}>{it.name}</TableCell>
                                             <TableCell>{it.unit ?? '—'}</TableCell>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -8,6 +8,7 @@ import {
     TableHead, TableRow, TextField, Typography,
 } from '@mui/material';
 import { Add, Delete, Edit } from '@mui/icons-material';
+import SearchField from '@/Components/Shared/SearchField';
 
 function SupplierForm({ open, onClose, supplier }) {
     const editing = Boolean(supplier);
@@ -92,12 +93,23 @@ export default function SuppliersIndex({ suppliers }) {
     const canEdit = auth.permissions.includes('manage suppliers');
     const [formOpen, setFormOpen] = useState(false);
     const [editSupplier, setEditSupplier] = useState(null);
+    const [search, setSearch] = useState('');
 
     const handleDelete = (id) => {
         if (confirm('Delete this supplier?')) {
             router.delete(`/suppliers/${id}`);
         }
     };
+
+    const filteredSuppliers = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return suppliers;
+        return suppliers.filter((s) => (
+            s.name?.toLowerCase().includes(q)
+            || s.phone?.toLowerCase().includes(q)
+            || s.contact_person?.toLowerCase().includes(q)
+        ));
+    }, [suppliers, search]);
 
     return (
         <AppLayout title="Suppliers">
@@ -110,11 +122,14 @@ export default function SuppliersIndex({ suppliers }) {
                         Suppliers used for Purchases.
                     </Typography>
                 </Box>
-                {canEdit && (
-                    <Button variant="contained" startIcon={<Add />} onClick={() => { setEditSupplier(null); setFormOpen(true); }}>
-                        Add Supplier
-                    </Button>
-                )}
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <SearchField value={search} onChange={setSearch} placeholder="Search name, phone, contact..." />
+                    {canEdit && (
+                        <Button variant="contained" startIcon={<Add />} onClick={() => { setEditSupplier(null); setFormOpen(true); }}>
+                            Add Supplier
+                        </Button>
+                    )}
+                </Stack>
             </Stack>
 
             <Card>
@@ -131,14 +146,14 @@ export default function SuppliersIndex({ suppliers }) {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {suppliers.length === 0 ? (
+                                {filteredSuppliers.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={5} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                                            No suppliers found.
+                                            {search ? 'No suppliers match your search.' : 'No suppliers found.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    suppliers.map((s) => (
+                                    filteredSuppliers.map((s) => (
                                         <TableRow key={s.id} hover>
                                             <TableCell fontWeight={500}>{s.name}</TableCell>
                                             <TableCell>{s.phone ?? '—'}</TableCell>

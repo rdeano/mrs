@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\BackupController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
@@ -141,5 +142,15 @@ Route::middleware('auth')->group(function () {
     Route::put('/settings/users/{user}', [UserController::class, 'update'])->name('settings.users.update');
     Route::put('/settings/users/{user}/password', [UserController::class, 'updatePassword'])->name('settings.users.password');
     Route::delete('/settings/users/{user}', [UserController::class, 'destroy'])->name('settings.users.destroy');
+
+    // Settings — Backup
+    Route::get('/settings/backup', [BackupController::class, 'index'])->name('settings.backup.index');
+    Route::post('/settings/backup', [BackupController::class, 'store'])->name('settings.backup.store');
+    Route::get('/settings/backup/{filename}/download', [BackupController::class, 'download'])
+        ->where('filename', '[A-Za-z0-9_\-\.]+')
+        ->name('settings.backup.download');
+    Route::delete('/settings/backup/{filename}', [BackupController::class, 'destroy'])
+        ->where('filename', '[A-Za-z0-9_\-\.]+')
+        ->name('settings.backup.destroy');
 
 });

@@ -26,6 +26,7 @@ import {
     History as LogIcon,
     Settings as SettingsIcon,
     ManageAccounts as UsersIcon,
+    Backup as BackupIcon,
     KeyboardArrowDown,
 } from '@mui/icons-material';
 
@@ -72,6 +73,7 @@ const NAV_GROUPS = [
             { label: 'Activity Log', href: '/activity-log', icon: <LogIcon fontSize="small" />,     permission: 'view activity log' },
             { label: 'Users',        href: '/settings/users', icon: <UsersIcon fontSize="small" />, permission: 'manage users' },
             { label: 'Settings',     href: '/settings/pnl-structure', icon: <SettingsIcon fontSize="small" />, permission: 'manage settings' },
+            { label: 'Backup',       href: '/settings/backup', icon: <BackupIcon fontSize="small" />, permission: 'manage settings' },
         ],
     },
 ];

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -10,6 +10,7 @@ import {
 } from '@mui/material';
 import { Add, Delete, Edit, AutoAwesome } from '@mui/icons-material';
 import { peso, longDate as fmt } from '@/utils/format';
+import SearchField from '@/Components/Shared/SearchField';
 
 function EntryForm({ open, onClose, periodId, categories, entry }) {
     const editing = Boolean(entry);
@@ -137,6 +138,7 @@ export default function ExpensesIndex({ periods, currentPeriod, entries, categor
     const [formOpen, setFormOpen] = useState(false);
     const [editEntry, setEditEntry] = useState(null);
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
+    const [search, setSearch] = useState('');
 
     const changePeriod = (id) => {
         setSelectedPeriodId(id);
@@ -148,6 +150,17 @@ export default function ExpensesIndex({ periods, currentPeriod, entries, categor
             router.delete(`/expenses/${id}`);
         }
     };
+
+    const filteredEntries = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return entries;
+        return entries.filter((row) => (
+            row.category?.name?.toLowerCase().includes(q)
+            || row.description?.toLowerCase().includes(q)
+            || row.reference_no?.toLowerCase().includes(q)
+            || row.paid_by?.toLowerCase().includes(q)
+        ));
+    }, [entries, search]);
 
     return (
         <AppLayout title="Expenses">
@@ -166,6 +179,7 @@ export default function ExpensesIndex({ periods, currentPeriod, entries, categor
                     </Typography>
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
+                    <SearchField value={search} onChange={setSearch} placeholder="Search category, description, reference..." />
                     <FormControl size="small" sx={{ minWidth: 200 }}>
                         <InputLabel>Period</InputLabel>
                         <Select value={selectedPeriodId} label="Period" onChange={(e) => changePeriod(e.target.value)}>
@@ -198,14 +212,14 @@ export default function ExpensesIndex({ periods, currentPeriod, entries, categor
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {entries.length === 0 ? (
+                                {filteredEntries.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                                            No expenses for this period.
+                                            {search ? 'No expenses match your search.' : 'No expenses for this period.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    entries.map((row) => (
+                                    filteredEntries.map((row) => (
                                         <TableRow key={row.id} hover>
                                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmt(row.expense_date)}</TableCell>
                                             <TableCell fontWeight={500}>{row.category?.name ?? '—'}</TableCell>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -10,6 +10,7 @@ import {
 } from '@mui/material';
 import { Add, Delete, Edit, AutoAwesome } from '@mui/icons-material';
 import { peso, longDate as fmt } from '@/utils/format';
+import SearchField from '@/Components/Shared/SearchField';
 
 function EntryForm({ open, onClose, periodId, employees, entry }) {
     const editing = Boolean(entry);
@@ -107,6 +108,7 @@ export default function SalariesIndex({ periods, currentPeriod, entries, employe
     const [formOpen, setFormOpen] = useState(false);
     const [editEntry, setEditEntry] = useState(null);
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
+    const [search, setSearch] = useState('');
 
     const changePeriod = (id) => {
         setSelectedPeriodId(id);
@@ -118,6 +120,16 @@ export default function SalariesIndex({ periods, currentPeriod, entries, employe
             router.delete(`/salaries/${id}`);
         }
     };
+
+    const filteredEntries = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return entries;
+        return entries.filter((row) => (
+            row.employee?.name?.toLowerCase().includes(q)
+            || row.employee?.role?.toLowerCase().includes(q)
+            || row.notes?.toLowerCase().includes(q)
+        ));
+    }, [entries, search]);
 
     return (
         <AppLayout title="Salaries">
@@ -136,6 +148,7 @@ export default function SalariesIndex({ periods, currentPeriod, entries, employe
                     </Typography>
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
+                    <SearchField value={search} onChange={setSearch} placeholder="Search employee, role..." />
                     <FormControl size="small" sx={{ minWidth: 200 }}>
                         <InputLabel>Period</InputLabel>
                         <Select value={selectedPeriodId} label="Period" onChange={(e) => changePeriod(e.target.value)}>
@@ -167,14 +180,14 @@ export default function SalariesIndex({ periods, currentPeriod, entries, employe
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {entries.length === 0 ? (
+                                {filteredEntries.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                                            No salary entries for this period.
+                                            {search ? 'No salary entries match your search.' : 'No salary entries for this period.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    entries.map((row) => (
+                                    filteredEntries.map((row) => (
                                         <TableRow key={row.id} hover>
                                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmt(row.payment_date)}</TableCell>
                                             <TableCell fontWeight={500}>{row.employee?.name ?? '—'}</TableCell>

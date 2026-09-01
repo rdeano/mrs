@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -8,6 +8,7 @@ import {
     TableContainer, TableHead, TableRow, TextField, Typography,
 } from '@mui/material';
 import { Add, Delete, Edit } from '@mui/icons-material';
+import SearchField from '@/Components/Shared/SearchField';
 
 const TYPE_COLOR = { hotel: 'info', restaurant: 'secondary', distributor: 'success', other: 'default' };
 const TYPE_LABEL = { hotel: 'Hotel', restaurant: 'Restaurant', distributor: 'Distributor', other: 'Other' };
@@ -15,11 +16,12 @@ const TYPE_LABEL = { hotel: 'Hotel', restaurant: 'Restaurant', distributor: 'Dis
 function CustomerForm({ open, onClose, customer }) {
     const editing = Boolean(customer);
     const { data, setData, post, put, processing, errors, reset } = useForm({
-        name:            customer?.name            ?? '',
-        type:            customer?.type            ?? 'other',
-        phone:           customer?.phone            ?? '',
-        contact_person:  customer?.contact_person   ?? '',
-        notes:           customer?.notes            ?? '',
+        name:                customer?.name                ?? '',
+        type:                customer?.type                ?? 'other',
+        phone:               customer?.phone               ?? '',
+        contact_person:      customer?.contact_person      ?? '',
+        payment_terms_days:  customer?.payment_terms_days  ?? 30,
+        notes:               customer?.notes               ?? '',
     });
 
     const submit = (e) => {
@@ -81,6 +83,18 @@ function CustomerForm({ open, onClose, customer }) {
                         </Stack>
 
                         <TextField
+                            label="Payment Terms (days)"
+                            type="number"
+                            value={data.payment_terms_days}
+                            onChange={(e) => setData('payment_terms_days', e.target.value)}
+                            error={!!errors.payment_terms_days}
+                            helperText={errors.payment_terms_days || 'Invoice due date = invoice date + this many days (e.g. 14 = 2 weeks, 21 = 3 weeks)'}
+                            fullWidth
+                            required
+                            inputProps={{ step: 1, min: 0, max: 365 }}
+                        />
+
+                        <TextField
                             label="Notes"
                             value={data.notes}
                             onChange={(e) => setData('notes', e.target.value)}
@@ -107,12 +121,24 @@ export default function CustomersIndex({ customers }) {
     const canEdit = auth.permissions.includes('manage customers');
     const [formOpen, setFormOpen] = useState(false);
     const [editCustomer, setEditCustomer] = useState(null);
+    const [search, setSearch] = useState('');
 
     const handleDelete = (id) => {
         if (confirm('Delete this customer?')) {
             router.delete(`/customers/${id}`);
         }
     };
+
+    const filteredCustomers = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return customers;
+        return customers.filter((c) => (
+            c.name?.toLowerCase().includes(q)
+            || c.phone?.toLowerCase().includes(q)
+            || c.contact_person?.toLowerCase().includes(q)
+            || TYPE_LABEL[c.type]?.toLowerCase().includes(q)
+        ));
+    }, [customers, search]);
 
     return (
         <AppLayout title="Customers">
@@ -125,11 +151,14 @@ export default function CustomersIndex({ customers }) {
                         Customers used for Receivables.
                     </Typography>
                 </Box>
-                {canEdit && (
-                    <Button variant="contained" startIcon={<Add />} onClick={() => { setEditCustomer(null); setFormOpen(true); }}>
-                        Add Customer
-                    </Button>
-                )}
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <SearchField value={search} onChange={setSearch} placeholder="Search name, phone, contact..." />
+                    {canEdit && (
+                        <Button variant="contained" startIcon={<Add />} onClick={() => { setEditCustomer(null); setFormOpen(true); }}>
+                            Add Customer
+                        </Button>
+                    )}
+                </Stack>
             </Stack>
 
             <Card>
@@ -142,19 +171,20 @@ export default function CustomersIndex({ customers }) {
                                     <TableCell>Type</TableCell>
                                     <TableCell>Phone</TableCell>
                                     <TableCell>Contact Person</TableCell>
+                                    <TableCell>Terms</TableCell>
                                     <TableCell>Notes</TableCell>
                                     {canEdit && <TableCell align="center" sx={{ width: 80 }} />}
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {customers.length === 0 ? (
+                                {filteredCustomers.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                                            No customers found.
+                                        <TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                            {search ? 'No customers match your search.' : 'No customers found.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    customers.map((c) => (
+                                    filteredCustomers.map((c) => (
                                         <TableRow key={c.id} hover>
                                             <TableCell fontWeight={500}>{c.name}</TableCell>
                                             <TableCell>
@@ -162,6 +192,7 @@ export default function CustomersIndex({ customers }) {
                                             </TableCell>
                                             <TableCell>{c.phone ?? '—'}</TableCell>
                                             <TableCell>{c.contact_person ?? '—'}</TableCell>
+                                            <TableCell>{c.payment_terms_days} days</TableCell>
                                             <TableCell sx={{ color: 'text.secondary', maxWidth: 240 }}>{c.notes ?? '—'}</TableCell>
                                             {canEdit && (
                                                 <TableCell align="center">

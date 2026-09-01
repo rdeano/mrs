@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -10,6 +10,7 @@ import {
 } from '@mui/material';
 import { Add, Delete, Edit, AutoAwesome } from '@mui/icons-material';
 import { peso, longDate as fmt } from '@/utils/format';
+import SearchField from '@/Components/Shared/SearchField';
 
 const emptyItem = () => ({ item_name: '', qty: '', unit_price: '' });
 
@@ -209,6 +210,7 @@ export default function ReceivablesIndex({ periods, currentPeriod, entries, cust
     const [formOpen, setFormOpen] = useState(false);
     const [editEntry, setEditEntry] = useState(null);
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
+    const [search, setSearch] = useState('');
 
     const changePeriod = (id) => {
         setSelectedPeriodId(id);
@@ -221,8 +223,19 @@ export default function ReceivablesIndex({ periods, currentPeriod, entries, cust
         }
     };
 
+    const filteredEntries = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return entries;
+        return entries.filter((invoice) => (
+            invoice.invoice_no?.toLowerCase().includes(q)
+            || invoice.customer?.name?.toLowerCase().includes(q)
+            || invoice.notes?.toLowerCase().includes(q)
+            || invoice.items?.some((it) => it.item_name?.toLowerCase().includes(q))
+        ));
+    }, [entries, search]);
+
     // Flatten invoices -> one row per item line, with rowSpan on the invoice-level columns.
-    const rows = entries.flatMap((invoice) => {
+    const rows = filteredEntries.flatMap((invoice) => {
         const items = invoice.items?.length ? invoice.items : [{ id: `${invoice.id}-blank`, item_name: null, qty: null, unit_price: null, amount: invoice.total_amount }];
         return items.map((item, idx) => ({
             key: `${invoice.id}-${item.id ?? idx}`,
@@ -250,6 +263,7 @@ export default function ReceivablesIndex({ periods, currentPeriod, entries, cust
                     </Typography>
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
+                    <SearchField value={search} onChange={setSearch} placeholder="Search invoice no, customer, item..." />
                     <FormControl size="small" sx={{ minWidth: 200 }}>
                         <InputLabel>Period</InputLabel>
                         <Select value={selectedPeriodId} label="Period" onChange={(e) => changePeriod(e.target.value)}>
@@ -279,14 +293,15 @@ export default function ReceivablesIndex({ periods, currentPeriod, entries, cust
                                     <TableCell align="right">Price</TableCell>
                                     <TableCell align="right">Amount</TableCell>
                                     <TableCell>Date</TableCell>
+                                    <TableCell>Due Date</TableCell>
                                     {canEdit && <TableCell align="center" sx={{ width: 80 }} />}
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {rows.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={8} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                                            No receivables for this period.
+                                        <TableCell colSpan={9} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                            {search ? 'No receivables match your search.' : 'No receivables for this period.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -309,6 +324,11 @@ export default function ReceivablesIndex({ periods, currentPeriod, entries, cust
                                             {isFirst && (
                                                 <TableCell rowSpan={span} sx={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>
                                                     {fmt(invoice.invoice_date)}
+                                                </TableCell>
+                                            )}
+                                            {isFirst && (
+                                                <TableCell rowSpan={span} sx={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                                                    {fmt(invoice.due_date)}
                                                 </TableCell>
                                             )}
                                             {canEdit && isFirst && (

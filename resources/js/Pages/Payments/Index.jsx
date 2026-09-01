@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -10,6 +10,7 @@ import {
 } from '@mui/material';
 import { Add, Delete, Payment as PaymentIcon } from '@mui/icons-material';
 import { peso, longDate as fmt } from '@/utils/format';
+import SearchField from '@/Components/Shared/SearchField';
 
 const STATUS_COLOR = { sent: 'default', partial: 'warning', paid: 'success', overdue: 'error', draft: 'default' };
 const STATUS_LABEL = { sent: 'Unpaid', partial: 'Partial', paid: 'Paid', overdue: 'Overdue', draft: 'Draft' };
@@ -26,11 +27,17 @@ function PaymentForm({ invoice, onSaved, onCancel }) {
         invoice_id: invoice.id,
         payment_date: '',
         amount: '',
+        tax_withheld: '',
         method: 'Cash',
         reference_no: '',
+        bank_name: '',
+        check_no: '',
+        check_date: '',
         notes: '',
         allocations: invoice.items.map((it) => ({ invoice_item_id: it.id, amount: '' })),
     });
+
+    const isCheck = data.method === 'Check';
 
     const setAllocation = (index, value) => {
         setData('allocations', data.allocations.map((a, i) => (i === index ? { ...a, amount: value } : a)));
@@ -38,10 +45,12 @@ function PaymentForm({ invoice, onSaved, onCancel }) {
 
     const allocatedTotal = data.allocations.reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
     const amountNum = Number(data.amount) || 0;
-    const balanced = Math.abs(allocatedTotal - amountNum) < 0.005;
+    const taxNum = Number(data.tax_withheld) || 0;
+    const settledTotal = amountNum + taxNum;
+    const balanced = Math.abs(allocatedTotal - settledTotal) < 0.005;
 
     const autoFill = () => {
-        let remaining = amountNum;
+        let remaining = settledTotal;
         const next = invoice.items.map((it) => {
             const cap = Math.max(0, it.balance);
             const take = Math.min(cap, remaining);
@@ -61,10 +70,17 @@ function PaymentForm({ invoice, onSaved, onCancel }) {
             <Stack spacing={2.5} pt={1}>
                 <Stack direction="row" spacing={2}>
                     <TextField
-                        label="Amount" type="number" fullWidth required autoFocus
+                        label="Amount Received" type="number" fullWidth required autoFocus
                         value={data.amount}
                         onChange={(e) => setData('amount', e.target.value)}
-                        error={!!errors.amount} helperText={errors.amount}
+                        error={!!errors.amount} helperText={errors.amount || 'Actual cash/check amount'}
+                        inputProps={{ step: 'any', min: 0 }}
+                    />
+                    <TextField
+                        label="Withholding Tax" type="number" fullWidth
+                        value={data.tax_withheld}
+                        onChange={(e) => setData('tax_withheld', e.target.value)}
+                        error={!!errors.tax_withheld} helperText={errors.tax_withheld || 'Tax the customer deducted, if any'}
                         inputProps={{ step: 'any', min: 0 }}
                     />
                     <TextField
@@ -75,6 +91,11 @@ function PaymentForm({ invoice, onSaved, onCancel }) {
                         InputLabelProps={{ shrink: true }}
                     />
                 </Stack>
+                {taxNum > 0 && (
+                    <Typography variant="caption" color="text.secondary">
+                        Settles {peso(settledTotal)} of the invoice ({peso(amountNum)} received + {peso(taxNum)} tax withheld).
+                    </Typography>
+                )}
                 <Stack direction="row" spacing={2}>
                     <FormControl fullWidth>
                         <InputLabel>Method</InputLabel>
@@ -82,13 +103,40 @@ function PaymentForm({ invoice, onSaved, onCancel }) {
                             {METHODS.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
                         </Select>
                     </FormControl>
-                    <TextField
-                        label="Reference No." fullWidth
-                        value={data.reference_no}
-                        onChange={(e) => setData('reference_no', e.target.value)}
-                        error={!!errors.reference_no} helperText={errors.reference_no}
-                    />
+                    {isCheck ? (
+                        <TextField
+                            label="Bank Name" fullWidth required
+                            value={data.bank_name}
+                            onChange={(e) => setData('bank_name', e.target.value)}
+                            error={!!errors.bank_name} helperText={errors.bank_name}
+                        />
+                    ) : (
+                        <TextField
+                            label="Reference No." fullWidth
+                            value={data.reference_no}
+                            onChange={(e) => setData('reference_no', e.target.value)}
+                            error={!!errors.reference_no} helperText={errors.reference_no}
+                        />
+                    )}
                 </Stack>
+
+                {isCheck && (
+                    <Stack direction="row" spacing={2}>
+                        <TextField
+                            label="Check No." fullWidth required
+                            value={data.check_no}
+                            onChange={(e) => setData('check_no', e.target.value)}
+                            error={!!errors.check_no} helperText={errors.check_no}
+                        />
+                        <TextField
+                            label="Check Date" type="date" fullWidth required
+                            value={data.check_date}
+                            onChange={(e) => setData('check_date', e.target.value)}
+                            error={!!errors.check_date} helperText={errors.check_date || 'Date written on the check'}
+                            InputLabelProps={{ shrink: true }}
+                        />
+                    </Stack>
+                )}
 
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Typography variant="caption" color="text.secondary">ALLOCATE TO ITEMS</Typography>
@@ -125,9 +173,9 @@ function PaymentForm({ invoice, onSaved, onCancel }) {
                     borderRadius: 2, px: 2, py: 1,
                 }}>
                     <Typography variant="body2" color={balanced ? 'success.dark' : 'error.dark'}>
-                        Allocated: {peso(allocatedTotal)} / {peso(amountNum)}
+                        Allocated: {peso(allocatedTotal)} / {peso(settledTotal)}
                     </Typography>
-                    {!balanced && <Typography variant="caption" color="error.dark">Must match the payment amount</Typography>}
+                    {!balanced && <Typography variant="caption" color="error.dark">Must match amount received + tax withheld</Typography>}
                 </Stack>
 
                 <TextField
@@ -219,8 +267,16 @@ function PaymentDialog({ open, onClose, invoice, canEdit }) {
                                         )}
                                     >
                                         <ListItemText
-                                            primary={`${peso(p.amount)} — ${p.method ?? 'Unspecified'}`}
-                                            secondary={`${fmt(p.payment_date)}${p.reference_no ? ` · Ref: ${p.reference_no}` : ''}`}
+                                            primary={
+                                                Number(p.tax_withheld) > 0
+                                                    ? `${peso(p.amount)} + ${peso(p.tax_withheld)} tax withheld — ${p.method ?? 'Unspecified'}`
+                                                    : `${peso(p.amount)} — ${p.method ?? 'Unspecified'}`
+                                            }
+                                            secondary={
+                                                p.method === 'Check'
+                                                    ? `${fmt(p.payment_date)} · ${p.bank_name ?? '—'} #${p.check_no ?? '—'}${p.check_date ? ` · dated ${fmt(p.check_date)}` : ''}`
+                                                    : `${fmt(p.payment_date)}${p.reference_no ? ` · Ref: ${p.reference_no}` : ''}`
+                                            }
                                         />
                                     </ListItem>
                                 ))}
@@ -247,11 +303,20 @@ function PaymentDialog({ open, onClose, invoice, canEdit }) {
     );
 }
 
-export default function PaymentsIndex({ periods, currentPeriod, invoices }) {
+function agingFilterLabel(filter) {
+    if (!filter) return '';
+    if (filter.from === null && filter.to === 0) return 'Not yet due';
+    if (filter.from === null) return `Up to ${filter.to} days overdue`;
+    if (filter.to === null) return `${filter.from}+ days overdue`;
+    return `${filter.from}–${filter.to} days overdue`;
+}
+
+export default function PaymentsIndex({ periods, currentPeriod, invoices, agingFilter }) {
     const { auth } = usePage().props;
     const canEdit = auth.permissions.includes('manage invoices') && !currentPeriod?.is_closed;
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
     const [activeInvoiceId, setActiveInvoiceId] = useState(null);
+    const [search, setSearch] = useState('');
 
     const changePeriod = (id) => {
         setSelectedPeriodId(id);
@@ -262,6 +327,16 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices }) {
         ...invoice,
         balance: Number(invoice.total_amount) - Number(invoice.paid_amount),
     });
+
+    const filteredInvoices = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return invoices;
+        return invoices.filter((inv) => (
+            inv.invoice_no?.toLowerCase().includes(q)
+            || inv.customer?.name?.toLowerCase().includes(q)
+            || (STATUS_LABEL[inv.status] ?? inv.status)?.toLowerCase().includes(q)
+        ));
+    }, [invoices, search]);
 
     const totals = invoices.reduce((acc, inv) => {
         acc.total += Number(inv.total_amount);
@@ -277,22 +352,38 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices }) {
         <AppLayout title="Payments">
             <Head title="Payments" />
 
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={agingFilter ? 2 : 3} flexWrap="wrap" gap={2}>
                 <Box>
                     <Typography variant="h5" fontWeight={700}>Payments</Typography>
                     <Typography variant="body2" color="text.secondary" mt={0.5}>
                         Record checks/cash received against receivables, allocated per item.
                     </Typography>
                 </Box>
-                <FormControl size="small" sx={{ minWidth: 200 }}>
-                    <InputLabel>Period</InputLabel>
-                    <Select value={selectedPeriodId} label="Period" onChange={(e) => changePeriod(e.target.value)}>
-                        {periods.map((p) => (
-                            <MenuItem key={p.id} value={p.id}>{p.name}{p.is_closed ? ' 🔒' : ''}</MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <SearchField value={search} onChange={setSearch} placeholder="Search invoice no, customer..." />
+                    {!agingFilter && (
+                        <FormControl size="small" sx={{ minWidth: 200 }}>
+                            <InputLabel>Period</InputLabel>
+                            <Select value={selectedPeriodId} label="Period" onChange={(e) => changePeriod(e.target.value)}>
+                                {periods.map((p) => (
+                                    <MenuItem key={p.id} value={p.id}>{p.name}{p.is_closed ? ' 🔒' : ''}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    )}
+                </Stack>
             </Stack>
+
+            {agingFilter && (
+                <Stack direction="row" alignItems="center" spacing={1} mb={3}>
+                    <Chip
+                        label={`Showing: ${agingFilterLabel(agingFilter)} (all periods)`}
+                        color="warning"
+                        variant="outlined"
+                        onDelete={() => router.get('/payments')}
+                    />
+                </Stack>
+            )}
 
             <Card>
                 <CardContent sx={{ p: '0 !important' }}>
@@ -303,6 +394,7 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices }) {
                                     <TableCell>Invoice No.</TableCell>
                                     <TableCell>Customer</TableCell>
                                     <TableCell>Date</TableCell>
+                                    <TableCell>Due Date</TableCell>
                                     <TableCell align="right">Total</TableCell>
                                     <TableCell align="right">Paid</TableCell>
                                     <TableCell align="right">Balance</TableCell>
@@ -311,20 +403,25 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices }) {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {invoices.length === 0 ? (
+                                {filteredInvoices.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={8} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                                            No receivables for this period.
+                                        <TableCell colSpan={9} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                            {search
+                                                ? 'No receivables match your search.'
+                                                : agingFilter
+                                                    ? 'No outstanding invoices in this range.'
+                                                    : 'No receivables for this period.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    invoices.map((invoice) => {
+                                    filteredInvoices.map((invoice) => {
                                         const inv = invoiceWithBalance(invoice);
                                         return (
                                             <TableRow key={inv.id} hover>
                                                 <TableCell fontWeight={500}>{inv.invoice_no}</TableCell>
                                                 <TableCell>{inv.customer?.name ?? '—'}</TableCell>
                                                 <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmt(inv.invoice_date)}</TableCell>
+                                                <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmt(inv.due_date)}</TableCell>
                                                 <TableCell align="right">{peso(inv.total_amount)}</TableCell>
                                                 <TableCell align="right">{peso(inv.paid_amount)}</TableCell>
                                                 <TableCell align="right" sx={{ fontWeight: 600 }}>{peso(inv.balance)}</TableCell>

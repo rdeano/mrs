@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -8,6 +8,7 @@ import {
     TableHead, TableRow, TextField, Typography,
 } from '@mui/material';
 import { Add, Delete, Edit } from '@mui/icons-material';
+import SearchField from '@/Components/Shared/SearchField';
 
 function EmployeeForm({ open, onClose, employee }) {
     const editing = Boolean(employee);
@@ -81,12 +82,22 @@ export default function EmployeesIndex({ employees }) {
     const canEdit = auth.permissions.includes('manage salaries');
     const [formOpen, setFormOpen] = useState(false);
     const [editEmployee, setEditEmployee] = useState(null);
+    const [search, setSearch] = useState('');
 
     const handleDelete = (id) => {
         if (confirm('Delete this employee?')) {
             router.delete(`/employees/${id}`);
         }
     };
+
+    const filteredEmployees = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return employees;
+        return employees.filter((emp) => (
+            emp.name?.toLowerCase().includes(q)
+            || emp.role?.toLowerCase().includes(q)
+        ));
+    }, [employees, search]);
 
     return (
         <AppLayout title="Employees">
@@ -99,11 +110,14 @@ export default function EmployeesIndex({ employees }) {
                         Employees used for Salaries.
                     </Typography>
                 </Box>
-                {canEdit && (
-                    <Button variant="contained" startIcon={<Add />} onClick={() => { setEditEmployee(null); setFormOpen(true); }}>
-                        Add Employee
-                    </Button>
-                )}
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <SearchField value={search} onChange={setSearch} placeholder="Search name, role..." />
+                    {canEdit && (
+                        <Button variant="contained" startIcon={<Add />} onClick={() => { setEditEmployee(null); setFormOpen(true); }}>
+                            Add Employee
+                        </Button>
+                    )}
+                </Stack>
             </Stack>
 
             <Card>
@@ -119,14 +133,14 @@ export default function EmployeesIndex({ employees }) {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {employees.length === 0 ? (
+                                {filteredEmployees.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={4} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                                            No employees found.
+                                            {search ? 'No employees match your search.' : 'No employees found.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    employees.map((emp) => (
+                                    filteredEmployees.map((emp) => (
                                         <TableRow key={emp.id} hover>
                                             <TableCell fontWeight={500}>{emp.name}</TableCell>
                                             <TableCell>{emp.role ?? '—'}</TableCell>

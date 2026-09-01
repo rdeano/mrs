@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -10,6 +10,7 @@ import {
 } from '@mui/material';
 import { Add, Delete, Edit, AutoAwesome } from '@mui/icons-material';
 import { peso, longDate as fmt } from '@/utils/format';
+import SearchField from '@/Components/Shared/SearchField';
 
 const emptyItem = () => ({ item_name: '', qty: '', unit_price: '' });
 
@@ -199,6 +200,7 @@ export default function PurchasesIndex({ periods, currentPeriod, entries, suppli
     const [formOpen, setFormOpen] = useState(false);
     const [editEntry, setEditEntry] = useState(null);
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
+    const [search, setSearch] = useState('');
 
     const changePeriod = (id) => {
         setSelectedPeriodId(id);
@@ -211,8 +213,18 @@ export default function PurchasesIndex({ periods, currentPeriod, entries, suppli
         }
     };
 
+    const filteredEntries = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return entries;
+        return entries.filter((po) => (
+            po.supplier?.name?.toLowerCase().includes(q)
+            || po.notes?.toLowerCase().includes(q)
+            || po.items?.some((it) => it.item_name?.toLowerCase().includes(q))
+        ));
+    }, [entries, search]);
+
     // Flatten purchase orders -> one row per item line, with rowSpan on the order-level columns.
-    const rows = entries.flatMap((po) => {
+    const rows = filteredEntries.flatMap((po) => {
         const items = po.items?.length ? po.items : [{ id: `${po.id}-blank`, item_name: null, qty: null, unit_price: null, amount: po.total_amount }];
         return items.map((item, idx) => ({
             key: `${po.id}-${item.id ?? idx}`,
@@ -240,6 +252,7 @@ export default function PurchasesIndex({ periods, currentPeriod, entries, suppli
                     </Typography>
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
+                    <SearchField value={search} onChange={setSearch} placeholder="Search supplier, item..." />
                     <FormControl size="small" sx={{ minWidth: 200 }}>
                         <InputLabel>Period</InputLabel>
                         <Select value={selectedPeriodId} label="Period" onChange={(e) => changePeriod(e.target.value)}>
@@ -275,7 +288,7 @@ export default function PurchasesIndex({ periods, currentPeriod, entries, suppli
                                 {rows.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                                            No purchases for this period.
+                                            {search ? 'No purchases match your search.' : 'No purchases for this period.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (

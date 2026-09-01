@@ -8,7 +8,7 @@ import {
     TrendingUp, TrendingDown, AccountBalance, ReceiptLong,
     ArrowUpward, ArrowDownward,
 } from '@mui/icons-material';
-import { peso } from '@/utils/format';
+import { peso, shortDate } from '@/utils/format';
 
 const STATUS_COLOR = {
     draft:   'default',
@@ -65,7 +65,7 @@ function SectionCard({ title, children }) {
     );
 }
 
-export default function Dashboard({ period, stats, receivablesAging, recentInvoices }) {
+export default function Dashboard({ dateRange, stats, receivablesAging, recentInvoices }) {
     const hasAging = receivablesAging?.some((r) => Number(r.amount) > 0);
     const hasInvoices = recentInvoices?.length > 0;
 
@@ -73,15 +73,15 @@ export default function Dashboard({ period, stats, receivablesAging, recentInvoi
         <AppLayout title="Dashboard">
             <Head title="Dashboard" />
 
-            {/* Period badge */}
-            {period && (
+            {/* All-time range */}
+            {dateRange && (
                 <Stack direction="row" alignItems="center" spacing={1} mb={2.5}>
-                    <Typography variant="body2" color="text.secondary">Current Period:</Typography>
+                    <Typography variant="body2" color="text.secondary">All-time:</Typography>
                     <Chip
-                        label={period.name}
+                        label={`${shortDate(dateRange.start)} – ${shortDate(dateRange.end)}`}
                         size="small"
-                        color={period.is_closed ? 'default' : 'primary'}
-                        variant={period.is_closed ? 'outlined' : 'filled'}
+                        color="primary"
+                        variant="outlined"
                     />
                 </Stack>
             )}
@@ -109,7 +109,17 @@ export default function Dashboard({ period, stats, receivablesAging, recentInvoi
                         {hasAging ? (
                             <Stack spacing={1.5}>
                                 {receivablesAging.map((row) => (
-                                    <Box key={row.bucket}>
+                                    <Box
+                                        key={row.bucket}
+                                        onClick={() => router.get('/payments', {
+                                            ...(row.from !== null ? { aging_from: row.from } : {}),
+                                            ...(row.to !== null ? { aging_to: row.to } : {}),
+                                        })}
+                                        sx={{
+                                            cursor: 'pointer', mx: -1, px: 1, py: 0.5, borderRadius: 1,
+                                            '&:hover': { bgcolor: 'grey.50' },
+                                        }}
+                                    >
                                         <Stack direction="row" justifyContent="space-between" mb={0.5}>
                                             <Typography variant="body2" color="text.secondary">{row.bucket}</Typography>
                                             <Typography variant="body2" fontWeight={600}>{peso(row.amount)}</Typography>

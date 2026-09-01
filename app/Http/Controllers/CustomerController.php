@@ -21,11 +21,12 @@ class CustomerController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'name'            => 'required|string|max:150',
-            'type'            => ['required', Rule::in(['hotel', 'restaurant', 'distributor', 'other'])],
-            'phone'           => 'nullable|string|max:50',
-            'contact_person'  => 'nullable|string|max:150',
-            'notes'           => 'nullable|string',
+            'name'                => 'required|string|max:150',
+            'type'                => ['required', Rule::in(['hotel', 'restaurant', 'distributor', 'other'])],
+            'phone'               => 'nullable|string|max:50',
+            'contact_person'      => 'nullable|string|max:150',
+            'payment_terms_days'  => 'required|integer|min:0|max:365',
+            'notes'               => 'nullable|string',
         ]);
 
         Customer::create($validated);
@@ -36,11 +37,12 @@ class CustomerController extends Controller
     public function update(Request $request, Customer $customer): RedirectResponse
     {
         $validated = $request->validate([
-            'name'            => 'required|string|max:150',
-            'type'            => ['required', Rule::in(['hotel', 'restaurant', 'distributor', 'other'])],
-            'phone'           => 'nullable|string|max:50',
-            'contact_person'  => 'nullable|string|max:150',
-            'notes'           => 'nullable|string',
+            'name'                => 'required|string|max:150',
+            'type'                => ['required', Rule::in(['hotel', 'restaurant', 'distributor', 'other'])],
+            'phone'               => 'nullable|string|max:50',
+            'contact_person'      => 'nullable|string|max:150',
+            'payment_terms_days'  => 'required|integer|min:0|max:365',
+            'notes'               => 'nullable|string',
         ]);
 
         $customer->update($validated);
