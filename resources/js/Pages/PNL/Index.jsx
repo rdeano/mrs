@@ -118,7 +118,7 @@ export default function PnlIndex({ periods, currentPeriod, categories, dates, ex
     };
 
     const handleDeletePeriod = () => {
-        if (!confirm(`Delete period "${currentPeriod.name}"? Its expenses, purchases, invoices, salaries, and wastages are kept — this only removes it from the P&L period list.`)) return;
+        if (!confirm(`Delete period "${currentPeriod.name}"? This also deletes its expenses, purchases, invoices, salaries, and wastages — everything is soft-deleted so it can be recovered if needed, but none of it will appear anywhere in the app once deleted.`)) return;
         router.delete(`/pnl/periods/${currentPeriod.id}`);
     };
 

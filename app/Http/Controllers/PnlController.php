@@ -494,12 +494,26 @@ class PnlController extends Controller
 
     public function destroyPeriod(PnlPeriod $period): RedirectResponse
     {
-        // Soft delete only — entries/expenses/purchases/invoices/salaries/wastages tied
-        // to this period are left untouched in the database in case the data is needed
-        // again later (e.g. restoring the period via tinker).
-        $period->delete();
+        // Deleting a period cascades to everything tied to it — invoices,
+        // expenses, purchases, salaries, wastages, reseko entries — all
+        // soft-deleted together. Without this, those records stayed fully
+        // visible in period-independent reports (Receivables Aging, Total
+        // Receivables, Payments search) while silently vanishing from every
+        // period-scoped page and from Dashboard/P&L totals — inconsistent,
+        // and confusing to trace. Everything here is soft-deleted, so it's
+        // still recoverable (e.g. via tinker) if deleted by mistake.
+        DB::transaction(function () use ($period) {
+            Invoice::where('pnl_period_id', $period->id)->get()->each->delete();
+            Expense::where('pnl_period_id', $period->id)->get()->each->delete();
+            PurchaseOrder::where('pnl_period_id', $period->id)->get()->each->delete();
+            SalaryEntry::where('pnl_period_id', $period->id)->get()->each->delete();
+            WastageEntry::where('pnl_period_id', $period->id)->get()->each->delete();
+            ResekoEntry::where('pnl_period_id', $period->id)->get()->each->delete();
 
-        return redirect('/pnl')->with('success', 'Period deleted.');
+            $period->delete();
+        });
+
+        return redirect('/pnl')->with('success', 'Period and everything in it deleted.');
     }
 
     private function assertManualEntryAllowed(int $lineItemId): void

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -311,12 +311,32 @@ function agingFilterLabel(filter) {
     return `${filter.from}–${filter.to} days overdue`;
 }
 
-export default function PaymentsIndex({ periods, currentPeriod, invoices, agingFilter }) {
+export default function PaymentsIndex({ periods, currentPeriod, invoices, agingFilter, search }) {
     const { auth } = usePage().props;
     const canEdit = auth.permissions.includes('manage invoices') && !currentPeriod?.is_closed;
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
     const [activeInvoiceId, setActiveInvoiceId] = useState(null);
-    const [search, setSearch] = useState('');
+    const [searchInput, setSearchInput] = useState(search ?? '');
+    const searchTimer = useRef(null);
+    const crossPeriod = Boolean(agingFilter) || Boolean(search);
+
+    useEffect(() => () => clearTimeout(searchTimer.current), []);
+
+    // A single payment often settles invoices spread across different
+    // periods, so searching by invoice no./customer looks across ALL
+    // periods (server-side) instead of just whatever period is selected —
+    // no more hunting for which period an invoice lives in.
+    const handleSearchChange = (value) => {
+        setSearchInput(value);
+        clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(() => {
+            router.get('/payments', value.trim() ? { q: value.trim() } : {}, {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+            });
+        }, 400);
+    };
 
     const changePeriod = (id) => {
         setSelectedPeriodId(id);
@@ -327,16 +347,6 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
         ...invoice,
         balance: Number(invoice.total_amount) - Number(invoice.paid_amount),
     });
-
-    const filteredInvoices = useMemo(() => {
-        const q = search.trim().toLowerCase();
-        if (!q) return invoices;
-        return invoices.filter((inv) => (
-            inv.invoice_no?.toLowerCase().includes(q)
-            || inv.customer?.name?.toLowerCase().includes(q)
-            || (STATUS_LABEL[inv.status] ?? inv.status)?.toLowerCase().includes(q)
-        ));
-    }, [invoices, search]);
 
     const totals = invoices.reduce((acc, inv) => {
         acc.total += Number(inv.total_amount);
@@ -352,7 +362,7 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
         <AppLayout title="Payments">
             <Head title="Payments" />
 
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={agingFilter ? 2 : 3} flexWrap="wrap" gap={2}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={crossPeriod ? 2 : 3} flexWrap="wrap" gap={2}>
                 <Box>
                     <Typography variant="h5" fontWeight={700}>Payments</Typography>
                     <Typography variant="body2" color="text.secondary" mt={0.5}>
@@ -360,8 +370,8 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
                     </Typography>
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
-                    <SearchField value={search} onChange={setSearch} placeholder="Search invoice no, customer..." />
-                    {!agingFilter && (
+                    <SearchField value={searchInput} onChange={handleSearchChange} placeholder="Find invoice no, customer (any period)..." />
+                    {!crossPeriod && (
                         <FormControl size="small" sx={{ minWidth: 200 }}>
                             <InputLabel>Period</InputLabel>
                             <Select value={selectedPeriodId} label="Period" onChange={(e) => changePeriod(e.target.value)}>
@@ -374,7 +384,16 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
                 </Stack>
             </Stack>
 
-            {agingFilter && (
+            {search ? (
+                <Stack direction="row" alignItems="center" spacing={1} mb={3}>
+                    <Chip
+                        label={`Showing: results for "${search}" (all periods)`}
+                        color="primary"
+                        variant="outlined"
+                        onDelete={() => { setSearchInput(''); router.get('/payments'); }}
+                    />
+                </Stack>
+            ) : agingFilter && (
                 <Stack direction="row" alignItems="center" spacing={1} mb={3}>
                     <Chip
                         label={`Showing: ${agingFilterLabel(agingFilter)} (all periods)`}
@@ -393,6 +412,7 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
                                 <TableRow>
                                     <TableCell>Invoice No.</TableCell>
                                     <TableCell>Customer</TableCell>
+                                    {crossPeriod && <TableCell>Period</TableCell>}
                                     <TableCell>Date</TableCell>
                                     <TableCell>Due Date</TableCell>
                                     <TableCell align="right">Total</TableCell>
@@ -403,23 +423,26 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {filteredInvoices.length === 0 ? (
+                                {invoices.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={9} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                        <TableCell colSpan={crossPeriod ? 10 : 9} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                                             {search
-                                                ? 'No receivables match your search.'
+                                                ? `No invoices match "${search}".`
                                                 : agingFilter
                                                     ? 'No outstanding invoices in this range.'
                                                     : 'No receivables for this period.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    filteredInvoices.map((invoice) => {
+                                    invoices.map((invoice) => {
                                         const inv = invoiceWithBalance(invoice);
                                         return (
                                             <TableRow key={inv.id} hover>
                                                 <TableCell fontWeight={500}>{inv.invoice_no}</TableCell>
                                                 <TableCell>{inv.customer?.name ?? '—'}</TableCell>
+                                                {crossPeriod && (
+                                                    <TableCell sx={{ color: 'text.secondary' }}>{inv.period?.name ?? '—'}</TableCell>
+                                                )}
                                                 <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmt(inv.invoice_date)}</TableCell>
                                                 <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmt(inv.due_date)}</TableCell>
                                                 <TableCell align="right">{peso(inv.total_amount)}</TableCell>

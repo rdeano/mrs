@@ -4,12 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
 class SalaryEntry extends Model
 {
-    use LogsActivity;
+    use LogsActivity, SoftDeletes;
 
     protected $fillable = ['employee_id', 'pnl_period_id', 'pnl_line_item_id', 'amount', 'payment_date', 'notes'];
 

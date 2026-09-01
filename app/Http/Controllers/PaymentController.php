@@ -18,15 +18,29 @@ class PaymentController extends Controller
     {
         $periods = PnlPeriod::orderByDesc('start_date')->get(['id', 'name', 'is_closed']);
 
+        $search = trim((string) $request->get('q', ''));
+
         // Coming from a Dashboard aging bucket: that report spans every period
         // (it's "how old is this unpaid invoice", not period-scoped), so this
         // pulls the matching invoices across all periods instead of the usual
         // single-period view.
-        $agingActive = $request->has('aging_from') || $request->has('aging_to');
+        $agingActive = $search === '' && ($request->has('aging_from') || $request->has('aging_to'));
 
-        if ($agingActive) {
+        if ($search !== '') {
+            // A single payment (e.g. one big check) commonly settles invoices
+            // spread across several periods. Rather than making the user find
+            // and switch to each invoice's period, searching by invoice no. or
+            // customer looks across every period at once.
             $currentPeriod = null;
-            $invoiceQuery = Invoice::with(['customer:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')])
+            $invoiceQuery = Invoice::with(['customer:id,name', 'period:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')])
+                ->where(function ($q) use ($search) {
+                    $q->where('invoice_no', 'like', "%{$search}%")
+                        ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', "%{$search}%"));
+                })
+                ->orderByDesc('invoice_date');
+        } elseif ($agingActive) {
+            $currentPeriod = null;
+            $invoiceQuery = Invoice::with(['customer:id,name', 'period:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')])
                 ->whereIn('status', ['sent', 'partial', 'overdue'])
                 ->whereRaw('DATEDIFF(NOW(), due_date) BETWEEN ? AND ?', [
                     $request->filled('aging_from') ? (int) $request->aging_from : -100000,
@@ -61,7 +75,7 @@ class PaymentController extends Controller
             'to'   => $request->filled('aging_to') ? (int) $request->aging_to : null,
         ] : null;
 
-        return Inertia::render('Payments/Index', compact('periods', 'currentPeriod', 'invoices', 'agingFilter'));
+        return Inertia::render('Payments/Index', compact('periods', 'currentPeriod', 'invoices', 'agingFilter', 'search'));
     }
 
     public function store(Request $request): RedirectResponse
