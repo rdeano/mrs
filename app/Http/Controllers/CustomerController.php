@@ -25,6 +25,7 @@ class CustomerController extends Controller
             'type'                => ['required', Rule::in(['hotel', 'restaurant', 'distributor', 'other'])],
             'phone'               => 'nullable|string|max:50',
             'contact_person'      => 'nullable|string|max:150',
+            'address'             => 'nullable|string|max:255',
             'payment_terms_days'  => 'required|integer|min:0|max:365',
             'notes'               => 'nullable|string',
         ]);
@@ -41,6 +42,7 @@ class CustomerController extends Controller
             'type'                => ['required', Rule::in(['hotel', 'restaurant', 'distributor', 'other'])],
             'phone'               => 'nullable|string|max:50',
             'contact_person'      => 'nullable|string|max:150',
+            'address'             => 'nullable|string|max:255',
             'payment_terms_days'  => 'required|integer|min:0|max:365',
             'notes'               => 'nullable|string',
         ]);

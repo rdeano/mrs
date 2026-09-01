@@ -20,6 +20,7 @@ function CustomerForm({ open, onClose, customer }) {
         type:                customer?.type                ?? 'other',
         phone:               customer?.phone               ?? '',
         contact_person:      customer?.contact_person      ?? '',
+        address:             customer?.address             ?? '',
         payment_terms_days:  customer?.payment_terms_days  ?? 30,
         notes:               customer?.notes               ?? '',
     });
@@ -81,6 +82,15 @@ function CustomerForm({ open, onClose, customer }) {
                                 fullWidth
                             />
                         </Stack>
+
+                        <TextField
+                            label="Address"
+                            value={data.address}
+                            onChange={(e) => setData('address', e.target.value)}
+                            error={!!errors.address}
+                            helperText={errors.address}
+                            fullWidth
+                        />
 
                         <TextField
                             label="Payment Terms (days)"

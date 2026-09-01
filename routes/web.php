@@ -20,6 +20,7 @@ use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\PurchasePaymentController;
 use App\Http\Controllers\ResekoController;
 use App\Http\Controllers\SalaryController;
+use App\Http\Controllers\StatementOfAccountController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WastageController;
@@ -106,6 +107,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/suppliers', [SupplierController::class, 'store'])->name('suppliers.store');
     Route::put('/suppliers/{supplier}', [SupplierController::class, 'update'])->name('suppliers.update');
     Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy'])->name('suppliers.destroy');
+
+    // Statement of Account (printable, per-customer)
+    Route::get('/statement-of-account', [StatementOfAccountController::class, 'index'])->name('statement-of-account.index');
 
     // Customers
     Route::get('/customers', [CustomerController::class, 'index'])->name('customers.index');

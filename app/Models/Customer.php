@@ -12,7 +12,7 @@ class Customer extends Model
 {
     use LogsActivity, SoftDeletes;
 
-    protected $fillable = ['name', 'phone', 'contact_person', 'type', 'payment_terms_days', 'notes'];
+    protected $fillable = ['name', 'phone', 'contact_person', 'address', 'type', 'payment_terms_days', 'notes'];
 
     public function getActivitylogOptions(): LogOptions
     {

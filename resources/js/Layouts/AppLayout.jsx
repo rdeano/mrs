@@ -28,6 +28,7 @@ import {
     ManageAccounts as UsersIcon,
     Backup as BackupIcon,
     AccountBalanceWallet as PayableIcon,
+    Summarize as SoaIcon,
     KeyboardArrowDown,
 } from '@mui/icons-material';
 
@@ -48,6 +49,7 @@ const NAV_GROUPS = [
             { label: 'Payables',  href: '/payables',  icon: <PayableIcon fontSize="small" />,  permission: 'view expenses' },
             { label: 'Receivables', href: '/receivables', icon: <InvoiceIcon fontSize="small" />, permission: 'view invoices' },
             { label: 'Payments', href: '/payments', icon: <PaymentsIcon fontSize="small" />, permission: 'view invoices' },
+            { label: 'Statement of Account', href: '/statement-of-account', icon: <SoaIcon fontSize="small" />, permission: 'view invoices' },
             { label: 'Wastages',  href: '/wastages',  icon: <WastageIcon fontSize="small" />,  permission: 'view expenses' },
             { label: 'Reseko',    href: '/reseko',    icon: <ResekoIcon fontSize="small" />,   permission: 'view expenses' },
             { label: 'Salaries',  href: '/salaries',  icon: <EmployeeIcon fontSize="small" />, permission: 'view salaries' },
@@ -220,6 +222,7 @@ export default function AppLayout({ children, title }) {
                     display: { sm: 'none' },
                     bgcolor: '#0F172A',
                     borderBottom: '1px solid rgba(255,255,255,0.08)',
+                    '@media print': { display: 'none' },
                 }}
             >
                 <Toolbar>
@@ -233,7 +236,7 @@ export default function AppLayout({ children, title }) {
             </AppBar>
 
             {/* Sidebar */}
-            <Box component="nav" sx={{ width: { sm: DRAWER_WIDTH }, flexShrink: { sm: 0 } }}>
+            <Box component="nav" sx={{ width: { sm: DRAWER_WIDTH }, flexShrink: { sm: 0 }, '@media print': { display: 'none' } }}>
                 <Drawer
                     variant="temporary"
                     open={mobileOpen}
@@ -267,6 +270,7 @@ export default function AppLayout({ children, title }) {
                     width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
                     minWidth: 0,
                     mt: { xs: 7, sm: 0 },
+                    '@media print': { width: '100%', mt: 0 },
                 }}
             >
                 {/* Desktop page header bar */}
@@ -280,6 +284,7 @@ export default function AppLayout({ children, title }) {
                         bgcolor: 'background.paper',
                         borderBottom: '1px solid',
                         borderColor: 'divider',
+                        '@media print': { display: 'none' },
                     }}
                 >
                     <Typography variant="h6" fontWeight={700} color="text.primary">
@@ -298,7 +303,7 @@ export default function AppLayout({ children, title }) {
                 </Box>
 
                 {/* Main content */}
-                <Box sx={{ flex: 1, p: { xs: 2, sm: 3 } }}>
+                <Box sx={{ flex: 1, p: { xs: 2, sm: 3 }, '@media print': { p: 0 } }}>
                     {children}
                 </Box>
             </Box>
