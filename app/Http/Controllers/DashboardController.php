@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\PnlLineItem;
 use App\Models\PnlPeriod;
+use App\Models\PurchaseOrder;
 use App\Services\PnlRollupService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -55,6 +57,10 @@ class DashboardController extends Controller
             'net_profit'   => $net,
             'total_ar'     => Invoice::whereIn('status', ['sent', 'partial', 'overdue'])->sum('total_amount')
                             - Invoice::whereIn('status', ['sent', 'partial', 'overdue'])->sum('paid_amount'),
+            'total_ap'     => Expense::whereIn('status', ['unpaid', 'partial'])->sum('amount')
+                            - Expense::whereIn('status', ['unpaid', 'partial'])->sum('paid_amount')
+                            + PurchaseOrder::whereIn('status', ['unpaid', 'partial'])->sum('total_amount')
+                            - PurchaseOrder::whereIn('status', ['unpaid', 'partial'])->sum('paid_amount'),
         ];
 
         $dateRange = $periods->isNotEmpty() ? [

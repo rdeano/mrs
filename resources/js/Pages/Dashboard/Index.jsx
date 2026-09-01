@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
     TrendingUp, TrendingDown, AccountBalance, ReceiptLong,
-    ArrowUpward, ArrowDownward,
+    ArrowUpward, ArrowDownward, RequestQuote,
 } from '@mui/icons-material';
 import { peso, shortDate } from '@/utils/format';
 
@@ -86,19 +86,26 @@ export default function Dashboard({ dateRange, stats, receivablesAging, recentIn
                 </Stack>
             )}
 
-            {/* Stat cards */}
-            <Grid container spacing={2.5} mb={3}>
-                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+            {/* P&L stat cards */}
+            <Grid container spacing={2.5} mb={2.5}>
+                <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
                     <StatCard label="Total Sales"        value={stats?.total_sales}  icon={<TrendingUp />}     accentColor="#059669" />
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+                <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
                     <StatCard label="Gross Profit"       value={stats?.gross_profit} icon={<AccountBalance />} accentColor="#0284C7" />
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+                <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
                     <StatCard label="Net Profit / Loss"  value={stats?.net_profit}   icon={<TrendingDown />}   accentColor="#7C3AED" />
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+            </Grid>
+
+            {/* Cash position: what's owed to you vs what you owe */}
+            <Grid container spacing={2.5} mb={3}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                     <StatCard label="Total Receivables"  value={stats?.total_ar}     icon={<ReceiptLong />}    accentColor="#D97706" />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                    <StatCard label="Total Payables"     value={stats?.total_ap}     icon={<RequestQuote />}   accentColor="#B91C1C" />
                 </Grid>
             </Grid>
 
