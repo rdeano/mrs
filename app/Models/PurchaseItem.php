@@ -29,6 +29,11 @@ class PurchaseItem extends Model
         return $this->hasMany(ResekoEntry::class);
     }
 
+    public function paymentItems(): HasMany
+    {
+        return $this->hasMany(PurchasePaymentItem::class);
+    }
+
     /**
      * Purchase lines for a period, formatted as pickable options for the
      * Reseko "which purchase does this shortage belong to" picker.

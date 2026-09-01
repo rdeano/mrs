@@ -8,13 +8,16 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExpensePaymentController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ItemController;
 use App\Http\Controllers\PartnerController;
+use App\Http\Controllers\PayableController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PnlController;
 use App\Http\Controllers\PnlStructureController;
 use App\Http\Controllers\PurchaseController;
+use App\Http\Controllers\PurchasePaymentController;
 use App\Http\Controllers\ResekoController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\SupplierController;
@@ -83,6 +86,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/payments', [PaymentController::class, 'index'])->name('payments.index');
     Route::post('/payments', [PaymentController::class, 'store'])->name('payments.store');
     Route::delete('/payments/{payment}', [PaymentController::class, 'destroy'])->name('payments.destroy');
+
+    // Payables (accounts payable — paying suppliers/vendors back for
+    // Purchases and Expenses, the mirror image of Payments/Receivables)
+    Route::get('/payables', [PayableController::class, 'index'])->name('payables.index');
+    Route::post('/purchase-payments', [PurchasePaymentController::class, 'store'])->name('purchase-payments.store');
+    Route::delete('/purchase-payments/{purchasePayment}', [PurchasePaymentController::class, 'destroy'])->name('purchase-payments.destroy');
+    Route::post('/expense-payments', [ExpensePaymentController::class, 'store'])->name('expense-payments.store');
+    Route::delete('/expense-payments/{expensePayment}', [ExpensePaymentController::class, 'destroy'])->name('expense-payments.destroy');
 
     // Items (product catalog for Receivables / Purchases line items)
     Route::get('/items', [ItemController::class, 'index'])->name('items.index');

@@ -27,6 +27,7 @@ import {
     Settings as SettingsIcon,
     ManageAccounts as UsersIcon,
     Backup as BackupIcon,
+    AccountBalanceWallet as PayableIcon,
     KeyboardArrowDown,
 } from '@mui/icons-material';
 
@@ -44,6 +45,7 @@ const NAV_GROUPS = [
         items: [
             { label: 'Expenses',  href: '/expenses',  icon: <ExpenseIcon fontSize="small" />,  permission: 'view expenses' },
             { label: 'Purchases', href: '/purchases', icon: <PurchaseIcon fontSize="small" />, permission: 'view purchases' },
+            { label: 'Payables',  href: '/payables',  icon: <PayableIcon fontSize="small" />,  permission: 'view expenses' },
             { label: 'Receivables', href: '/receivables', icon: <InvoiceIcon fontSize="small" />, permission: 'view invoices' },
             { label: 'Payments', href: '/payments', icon: <PaymentsIcon fontSize="small" />, permission: 'view invoices' },
             { label: 'Wastages',  href: '/wastages',  icon: <WastageIcon fontSize="small" />,  permission: 'view expenses' },
