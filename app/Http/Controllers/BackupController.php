@@ -83,9 +83,107 @@ class BackupController extends Controller
         return back()->with('success', 'Backup deleted.');
     }
 
+    public function restore(Request $request, string $filename): RedirectResponse
+    {
+        $this->authorizeBackups($request);
+        abort_if(DB::connection()->getDriverName() !== 'mysql', 422, 'Restore is only supported for MySQL databases.');
+
+        $filename = basename($filename);
+        $zipPath = Storage::disk('local')->path(self::DIR."/{$filename}");
+        abort_unless(is_file($zipPath), 404);
+
+        set_time_limit(300);
+
+        try {
+            $this->restoreFromZip($zipPath);
+        } catch (\Throwable $e) {
+            return back()->with('error', "Restore failed: {$e->getMessage()}");
+        }
+
+        return back()->with('success', "Database restored from \"{$filename}\".");
+    }
+
+    public function restoreUpload(Request $request): RedirectResponse
+    {
+        $this->authorizeBackups($request);
+        abort_if(DB::connection()->getDriverName() !== 'mysql', 422, 'Restore is only supported for MySQL databases.');
+
+        $request->validate([
+            'backup_file' => ['required', 'file', 'max:512000'],
+        ]);
+
+        $file = $request->file('backup_file');
+        $ext = strtolower($file->getClientOriginalExtension());
+        abort_unless(in_array($ext, ['zip', 'sql'], true), 422, 'Upload a .zip or .sql backup file.');
+
+        set_time_limit(300);
+
+        try {
+            if ($ext === 'zip') {
+                $this->restoreFromZip($file->getRealPath());
+            } else {
+                $this->restoreFromSql($file->getRealPath());
+            }
+        } catch (\Throwable $e) {
+            return back()->with('error', "Restore failed: {$e->getMessage()}");
+        }
+
+        return back()->with('success', 'Database restored from uploaded file.');
+    }
+
     private function authorizeBackups(Request $request): void
     {
         abort_unless($request->user()->can('manage settings'), 403);
+    }
+
+    private function restoreFromZip(string $zipPath): void
+    {
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath) !== true) {
+            throw new \RuntimeException('Unable to open backup archive.');
+        }
+
+        $tmpDir = sys_get_temp_dir().'/mrs_restore_'.uniqid();
+        mkdir($tmpDir);
+
+        try {
+            $zip->extractTo($tmpDir);
+            $zip->close();
+
+            $sqlFiles = glob("{$tmpDir}/*.sql");
+            if (empty($sqlFiles)) {
+                throw new \RuntimeException('Backup archive does not contain a .sql file.');
+            }
+
+            $this->restoreFromSql($sqlFiles[0]);
+        } finally {
+            array_map('unlink', glob("{$tmpDir}/*") ?: []);
+            @rmdir($tmpDir);
+        }
+    }
+
+    /**
+     * Parses and replays a dump produced by dumpDatabaseTo(). Statements are
+     * split on ";\n" rather than parsed as full SQL, which is safe only because
+     * we control the exact format written during backup (no embedded ";\n" in
+     * CREATE TABLE column lists or in this app's data values).
+     */
+    private function restoreFromSql(string $sqlPath): void
+    {
+        $sql = file_get_contents($sqlPath);
+        $sql = preg_replace('/^--.*$/m', '', $sql);
+        $statements = array_filter(array_map('trim', explode(";\n", $sql)), fn (string $s) => $s !== '');
+
+        $pdo = DB::connection()->getPdo();
+        $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
+
+        try {
+            foreach ($statements as $statement) {
+                $pdo->exec($statement);
+            }
+        } finally {
+            $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+        }
     }
 
     /**

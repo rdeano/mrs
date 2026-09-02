@@ -167,5 +167,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/settings/backup/{filename}', [BackupController::class, 'destroy'])
         ->where('filename', '[A-Za-z0-9_\-\.]+')
         ->name('settings.backup.destroy');
+    Route::post('/settings/backup/restore-upload', [BackupController::class, 'restoreUpload'])
+        ->name('settings.backup.restore-upload');
+    Route::post('/settings/backup/{filename}/restore', [BackupController::class, 'restore'])
+        ->where('filename', '[A-Za-z0-9_\-\.]+')
+        ->name('settings.backup.restore');
 
 });
