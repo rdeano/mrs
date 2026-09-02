@@ -30,4 +30,9 @@ class Partner extends Model
     {
         return $this->hasMany(PartnerShare::class);
     }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(PartnerPayment::class);
+    }
 }

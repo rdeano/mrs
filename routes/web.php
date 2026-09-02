@@ -12,6 +12,7 @@ use App\Http\Controllers\ExpensePaymentController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ItemController;
 use App\Http\Controllers\PartnerController;
+use App\Http\Controllers\PartnerPaymentController;
 use App\Http\Controllers\PayableController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PnlController;
@@ -142,6 +143,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/partners', [PartnerController::class, 'index'])->name('partners.index');
     Route::post('/partners', [PartnerController::class, 'store'])->name('partners.store');
     Route::put('/partners/{partner}', [PartnerController::class, 'update'])->name('partners.update');
+
+    // Partner Payments
+    Route::get('/partner-payments', [PartnerPaymentController::class, 'index'])->name('partner-payments.index');
+    Route::post('/partner-payments', [PartnerPaymentController::class, 'store'])->name('partner-payments.store');
+    Route::put('/partner-payments/{partnerPayment}', [PartnerPaymentController::class, 'update'])->name('partner-payments.update');
+    Route::delete('/partner-payments/{partnerPayment}', [PartnerPaymentController::class, 'destroy'])->name('partner-payments.destroy');
 
     // Settings — P&L structure
     Route::get('/settings/pnl-structure', [PnlStructureController::class, 'index'])->name('settings.pnl-structure.index');

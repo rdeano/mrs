@@ -11,6 +11,7 @@ use App\Models\PnlPeriod;
 use App\Models\PurchaseOrder;
 use App\Models\ResekoEntry;
 use App\Models\SalaryEntry;
+use App\Models\Setting;
 use App\Models\WastageEntry;
 use Illuminate\Support\Collection;
 
@@ -112,5 +113,56 @@ class PnlRollupService
     {
         return $rows->groupBy(fn($row) => $row->{$dateField}->format('Y-m-d'))
             ->map(fn($group) => (float) $group->sum($amountField));
+    }
+
+    /**
+     * Net Profit summed across every period, after BIR & Savings — same formula
+     * DashboardController and PnlController each compute inline for their own
+     * needs (a per-period breakdown for trends/charts, and per-date grid rows,
+     * respectively). This is the plain scalar total, for callers that only need
+     * the bottom-line figure (e.g. partner profit-share entitlement).
+     */
+    public function allTimeNetProfit(): float
+    {
+        $periods = PnlPeriod::orderBy('start_date')->get();
+        $lineItems = PnlLineItem::with('category')->where('is_active', true)->get();
+        $defaultBirPct = (float) Setting::get('bir_savings_percent', 25);
+
+        $preBirTotal = $birTotal = 0.0;
+
+        foreach ($periods as $period) {
+            $dates  = $this->periodDatesFor($period);
+            $rollup = $this->forPeriod($period, $dates);
+
+            $sumByType = fn (string $type) => $lineItems
+                ->filter(fn (PnlLineItem $item) => $item->category?->type === $type)
+                ->sum(fn (PnlLineItem $item) => $rollup->get($item->id, ['by_date' => collect()])['by_date']->sum());
+
+            $revenue = $sumByType('revenue');
+            $cos     = $sumByType('cos');
+            $sga     = $sumByType('sga');
+            $wastage = $sumByType('gross_profit'); // Wastages line lives in this category
+            $otherIn = $sumByType('other_income');
+            $otherEx = $sumByType('other_expense');
+
+            $preBir = ($revenue - $cos - $wastage) - $sga + $otherIn - $otherEx;
+            $birPct = $period->bir_savings_percent !== null ? (float) $period->bir_savings_percent : $defaultBirPct;
+
+            $preBirTotal += $preBir;
+            $birTotal    += round($preBir * $birPct / 100, 2);
+        }
+
+        return $preBirTotal - $birTotal;
+    }
+
+    private function periodDatesFor(PnlPeriod $period): array
+    {
+        $dates   = [];
+        $current = $period->start_date->copy();
+        while ($current->lte($period->end_date)) {
+            $dates[] = $current->format('Y-m-d');
+            $current->addDay();
+        }
+        return $dates;
     }
 }

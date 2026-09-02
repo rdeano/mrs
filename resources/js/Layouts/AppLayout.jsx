@@ -54,6 +54,7 @@ const NAV_GROUPS = [
             { label: 'Reseko',    href: '/reseko',    icon: <ResekoIcon fontSize="small" />,   permission: 'view expenses' },
             { label: 'Salaries',  href: '/salaries',  icon: <EmployeeIcon fontSize="small" />, permission: 'view salaries' },
             { label: 'Employees', href: '/employees', icon: <EmployeesIcon fontSize="small" />, permission: 'view salaries' },
+            { label: 'Partner Payments', href: '/partner-payments', icon: <PartnerIcon fontSize="small" />, permission: 'view partners' },
         ],
     },
     {
