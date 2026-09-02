@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\PnlLineItem;
 use App\Models\PnlPeriod;
 use App\Models\PurchaseOrder;
+use App\Models\Setting;
 use App\Services\PnlRollupService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -31,6 +32,9 @@ class DashboardController extends Controller
         $lineItems = PnlLineItem::with('category')->where('is_active', true)->get();
 
         $revenue = $cos = $sga = $wastage = $otherIn = $otherEx = 0.0;
+        $preBirTotal = $birSavingsTotal = 0.0;
+        $defaultBirPct = (float) Setting::get('bir_savings_percent', 25);
+        $perPeriod = [];
 
         foreach ($periods as $period) {
             $dates  = $this->periodDates($period);
@@ -40,28 +44,118 @@ class DashboardController extends Controller
                 ->filter(fn (PnlLineItem $item) => $item->category?->type === $type)
                 ->sum(fn (PnlLineItem $item) => $rollup->get($item->id, ['by_date' => collect()])['by_date']->sum());
 
-            $revenue += $sumByType('revenue');
-            $cos     += $sumByType('cos');
-            $sga     += $sumByType('sga');
-            $wastage += $sumByType('gross_profit'); // Wastages line lives in this category
-            $otherIn += $sumByType('other_income');
-            $otherEx += $sumByType('other_expense');
+            $periodRevenue  = $sumByType('revenue');
+            $periodCos      = $sumByType('cos');
+            $periodSga      = $sumByType('sga');
+            $periodWastage  = $sumByType('gross_profit'); // Wastages line lives in this category
+            $periodOtherIn  = $sumByType('other_income');
+            $periodOtherEx  = $sumByType('other_expense');
+
+            $revenue += $periodRevenue;
+            $cos     += $periodCos;
+            $sga     += $periodSga;
+            $wastage += $periodWastage;
+            $otherIn += $periodOtherIn;
+            $otherEx += $periodOtherEx;
+
+            // BIR & Savings, same formula as PnlController: applied per period at that
+            // period's own effective rate — a closed period's rate is locked in at close
+            // time, so summing across periods can't be done from the aggregate totals
+            // above (different periods can carry different rates).
+            $periodPreBir = ($periodRevenue - $periodCos - $periodWastage) - $periodSga + $periodOtherIn - $periodOtherEx;
+            $periodBirPct = $period->bir_savings_percent !== null ? (float) $period->bir_savings_percent : $defaultBirPct;
+            $periodBir    = round($periodPreBir * $periodBirPct / 100, 2);
+
+            $preBirTotal      += $periodPreBir;
+            $birSavingsTotal  += $periodBir;
+
+            // Kept per period (not just summed) so the KPI strip can show each metric's
+            // change vs. the immediately preceding period — that comparison can't be
+            // reconstructed from the running totals above.
+            $perPeriod[$period->id] = [
+                'revenue' => $periodRevenue,
+                'gross'   => $periodRevenue - $periodCos - $periodWastage,
+                'bir'     => $periodBir,
+                'net'     => $periodPreBir - $periodBir,
+            ];
         }
 
         $gross = $revenue - $cos - $wastage;
-        $net   = $gross - $sga + $otherIn - $otherEx;
+        $net   = $preBirTotal - $birSavingsTotal; // after BIR & Savings, matching the P&L page's "Net Profit"
+
+        // Compares against the previous period that actually has activity — not just
+        // the previous one chronologically, which is often an empty scaffold period
+        // created ahead of time and would otherwise permanently hide every trend badge.
+        $activePeriods = $periods->filter(
+            fn (PnlPeriod $p) => collect($perPeriod[$p->id] ?? [])->sum(fn ($v) => abs($v)) > 0
+        )->values();
+
+        $trendOf = function (string $metric) use ($activePeriods, $perPeriod): ?float {
+            if ($activePeriods->count() < 2) {
+                return null;
+            }
+            $current  = $perPeriod[$activePeriods->last()->id][$metric] ?? 0.0;
+            $previous = $perPeriod[$activePeriods->slice(-2, 1)->first()->id][$metric] ?? 0.0;
+
+            if ($previous == 0.0) {
+                return null; // no meaningful "% change" off a zero base
+            }
+            return round((($current - $previous) / abs($previous)) * 100, 1);
+        };
+
+        $expensesOutstanding = Expense::whereIn('status', ['unpaid', 'partial'])->sum('amount')
+                             - Expense::whereIn('status', ['unpaid', 'partial'])->sum('paid_amount');
+        $purchasesOutstanding = PurchaseOrder::whereIn('status', ['unpaid', 'partial'])->sum('total_amount')
+                              - PurchaseOrder::whereIn('status', ['unpaid', 'partial'])->sum('paid_amount');
 
         $stats = [
             'total_sales'  => $revenue,
             'gross_profit' => $gross,
             'net_profit'   => $net,
+            'bir_savings'  => $birSavingsTotal,
+            'trends'       => [
+                'total_sales'  => $trendOf('revenue'),
+                'gross_profit' => $trendOf('gross'),
+                'bir_savings'  => $trendOf('bir'),
+                'net_profit'   => $trendOf('net'),
+            ],
             'total_ar'     => Invoice::whereIn('status', ['sent', 'partial', 'overdue'])->sum('total_amount')
                             - Invoice::whereIn('status', ['sent', 'partial', 'overdue'])->sum('paid_amount'),
-            'total_ap'     => Expense::whereIn('status', ['unpaid', 'partial'])->sum('amount')
-                            - Expense::whereIn('status', ['unpaid', 'partial'])->sum('paid_amount')
-                            + PurchaseOrder::whereIn('status', ['unpaid', 'partial'])->sum('total_amount')
-                            - PurchaseOrder::whereIn('status', ['unpaid', 'partial'])->sum('paid_amount'),
+            'total_ap'     => $expensesOutstanding + $purchasesOutstanding,
         ];
+
+        // Payables has no due_date to bucket by age the way receivables does, so this
+        // mirrors Receivables Aging with what payables actually can show: the split
+        // between the two sources of what the company owes.
+        $payablesBreakdown = [
+            ['bucket' => 'Expenses',        'amount' => $expensesOutstanding,  'tab' => 'expenses'],
+            ['bucket' => 'Purchase Orders', 'amount' => $purchasesOutstanding, 'tab' => 'purchases'],
+        ];
+
+        // Expenses by category, all-time — top 8 folded into "Other" so a growing
+        // category list can't turn this into an unreadable wall of bars.
+        $categoryTotals = Expense::selectRaw('expense_category_id, SUM(amount) as total')
+            ->groupBy('expense_category_id')
+            ->with('category:id,name')
+            ->orderByDesc('total')
+            ->get();
+
+        $otherTotal = (float) $categoryTotals->slice(8)->sum('total');
+
+        $expensesByCategory = $categoryTotals->take(8)
+            ->map(fn ($row) => ['category' => $row->category->name ?? 'Uncategorized', 'amount' => (float) $row->total])
+            ->when($otherTotal > 0, fn ($rows) => $rows->push(['category' => 'Other', 'amount' => $otherTotal]))
+            ->values();
+
+        // Trend chart: last 8 periods with actual activity, oldest first, so an
+        // empty scaffold period created ahead of time doesn't show up as a flat
+        // zero bar in the middle of the series.
+        $periodTrend = $activePeriods->slice(-8)->values()->map(fn (PnlPeriod $p) => [
+            'label'        => $p->name,
+            'total_sales'  => $perPeriod[$p->id]['revenue'],
+            'gross_profit' => $perPeriod[$p->id]['gross'],
+            'net_profit'   => $perPeriod[$p->id]['net'],
+        ]);
 
         $dateRange = $periods->isNotEmpty() ? [
             'start' => $periods->first()->start_date->format('Y-m-d'),
@@ -80,7 +174,10 @@ class DashboardController extends Controller
             ['bucket' => '60+ days overdue',   'amount' => $this->agingAmount(61, null), 'from' => 61,   'to' => null],
         ];
 
-        return Inertia::render('Dashboard/Index', compact('dateRange', 'stats', 'recentInvoices', 'receivablesAging'));
+        return Inertia::render('Dashboard/Index', compact(
+            'dateRange', 'stats', 'recentInvoices', 'receivablesAging', 'periodTrend',
+            'payablesBreakdown', 'expensesByCategory'
+        ));
     }
 
     /**

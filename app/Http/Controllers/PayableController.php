@@ -15,9 +15,14 @@ class PayableController extends Controller
     {
         $periods = PnlPeriod::orderByDesc('start_date')->get(['id', 'name', 'is_closed']);
         $search  = trim((string) $request->get('q', ''));
-        $crossPeriod = $search !== '';
 
-        if ($crossPeriod) {
+        // Coming from the Dashboard's Payables Breakdown chart: that figure is
+        // all-time outstanding, not scoped to one period — same reasoning as
+        // Payments' aging_from/aging_to handling for receivables.
+        $outstandingActive = $search === '' && $request->boolean('outstanding');
+        $crossPeriod = $search !== '' || $outstandingActive;
+
+        if ($search !== '') {
             $currentPeriod = null;
 
             $expenseQuery = Expense::with(['category:id,name', 'period:id,name', 'payments' => fn ($q) => $q->orderByDesc('payment_date')])
@@ -33,6 +38,16 @@ class PayableController extends Controller
                     $q->where('notes', 'like', "%{$search}%")
                         ->orWhereHas('supplier', fn ($s) => $s->where('name', 'like', "%{$search}%"));
                 })
+                ->orderByDesc('po_date');
+        } elseif ($outstandingActive) {
+            $currentPeriod = null;
+
+            $expenseQuery = Expense::with(['category:id,name', 'period:id,name', 'payments' => fn ($q) => $q->orderByDesc('payment_date')])
+                ->whereIn('status', ['unpaid', 'partial'])
+                ->orderByDesc('expense_date');
+
+            $purchaseQuery = PurchaseOrder::with(['supplier:id,name', 'period:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')])
+                ->whereIn('status', ['unpaid', 'partial'])
                 ->orderByDesc('po_date');
         } else {
             $currentPeriod = $request->period_id
@@ -64,6 +79,8 @@ class PayableController extends Controller
             })
             : collect();
 
-        return Inertia::render('Payables/Index', compact('periods', 'currentPeriod', 'expenses', 'purchases', 'search'));
+        $initialTab = in_array($request->get('tab'), ['purchases', 'expenses'], true) ? $request->get('tab') : 'purchases';
+
+        return Inertia::render('Payables/Index', compact('periods', 'currentPeriod', 'expenses', 'purchases', 'search', 'outstandingActive', 'initialTab'));
     }
 }

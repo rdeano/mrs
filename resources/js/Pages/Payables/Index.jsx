@@ -470,18 +470,18 @@ function ExpenseDialog({ open, onClose, expense, canEdit }) {
 
 // ── Page ──────────────────────────────────────────────────────────────
 
-export default function PayablesIndex({ periods, currentPeriod, expenses, purchases, search }) {
+export default function PayablesIndex({ periods, currentPeriod, expenses, purchases, search, outstandingActive, initialTab }) {
     const { auth } = usePage().props;
     const canEditPurchases = auth.permissions.includes('manage purchases') && !currentPeriod?.is_closed;
     const canEditExpenses = auth.permissions.includes('manage expenses') && !currentPeriod?.is_closed;
 
-    const [tab, setTab] = useState('purchases');
+    const [tab, setTab] = useState(initialTab ?? 'purchases');
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
     const [activePurchaseId, setActivePurchaseId] = useState(null);
     const [activeExpenseId, setActiveExpenseId] = useState(null);
     const [searchInput, setSearchInput] = useState(search ?? '');
     const searchTimer = useRef(null);
-    const crossPeriod = Boolean(search);
+    const crossPeriod = Boolean(search) || Boolean(outstandingActive);
 
     useEffect(() => () => clearTimeout(searchTimer.current), []);
 
@@ -550,6 +550,17 @@ export default function PayablesIndex({ periods, currentPeriod, expenses, purcha
                         color="primary"
                         variant="outlined"
                         onDelete={() => { setSearchInput(''); router.get('/payables'); }}
+                    />
+                </Stack>
+            )}
+
+            {outstandingActive && !search && (
+                <Stack direction="row" alignItems="center" spacing={1} mb={3}>
+                    <Chip
+                        label="Showing: all outstanding (unpaid/partial), all periods"
+                        color="warning"
+                        variant="outlined"
+                        onDelete={() => router.get('/payables')}
                     />
                 </Stack>
             )}
