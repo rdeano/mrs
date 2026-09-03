@@ -29,7 +29,6 @@ function SoaDocument({ statement, asOf, statementNo }) {
             invoice: inv,
             item,
             isFirst: idx === 0,
-            isLast: idx === items.length - 1,
             span: items.length,
         }));
     });
@@ -153,7 +152,7 @@ function SoaDocument({ statement, asOf, statementNo }) {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            rows.map(({ key, invoice, item, isFirst, isLast, span }) => (
+                            rows.map(({ key, invoice, item, isFirst, span }) => (
                                 <TableRow key={key}>
                                     {isFirst && (
                                         <TableCell rowSpan={span} sx={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>
@@ -167,8 +166,8 @@ function SoaDocument({ statement, asOf, statementNo }) {
                                     )}
                                     <TableCell>{item.item_name}</TableCell>
                                     <TableCell align="right">{peso(item.amount)}</TableCell>
-                                    {isLast && (
-                                        <TableCell rowSpan={span} align="right" sx={{ fontWeight: 700, verticalAlign: 'bottom' }}>
+                                    {isFirst && (
+                                        <TableCell rowSpan={span} align="right" sx={{ fontWeight: 700, verticalAlign: 'top' }}>
                                             {peso(invoice.total_amount)}
                                         </TableCell>
                                     )}

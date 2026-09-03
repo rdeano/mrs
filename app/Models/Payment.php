@@ -13,8 +13,8 @@ class Payment extends Model
     use LogsActivity;
 
     protected $fillable = [
-        'invoice_id', 'payment_date', 'amount', 'tax_withheld', 'method', 'reference_no',
-        'bank_name', 'check_no', 'check_date', 'notes',
+        'invoice_id', 'payment_batch_id', 'payment_date', 'amount', 'tax_withheld', 'wt_cert_no', 'wt_cert_date',
+        'method', 'reference_no', 'bank_name', 'check_no', 'check_date', 'notes',
     ];
 
     protected function casts(): array
@@ -24,6 +24,7 @@ class Payment extends Model
             'amount' => 'decimal:4',
             'tax_withheld' => 'decimal:4',
             'check_date' => 'date:Y-m-d',
+            'wt_cert_date' => 'date:Y-m-d',
         ];
     }
 
@@ -35,6 +36,11 @@ class Payment extends Model
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class);
+    }
+
+    public function batch(): BelongsTo
+    {
+        return $this->belongsTo(PaymentBatch::class, 'payment_batch_id');
     }
 
     public function items(): HasMany

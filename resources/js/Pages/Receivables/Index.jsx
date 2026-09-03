@@ -49,7 +49,7 @@ function EntryForm({ open, onClose, periodId, customers, itemOptions, entry }) {
     };
 
     return (
-        <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+        <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
             <form onSubmit={submit}>
                 <DialogTitle fontWeight={700}>{editing ? 'Edit Receivable' : 'Add Receivable'}</DialogTitle>
                 <Divider />
@@ -136,7 +136,7 @@ function EntryForm({ open, onClose, periodId, customers, itemOptions, entry }) {
                                         onChange={(e) => setItem(index, 'qty', e.target.value)}
                                         error={!!errors[`items.${index}.qty`]}
                                         helperText={errors[`items.${index}.qty`]}
-                                        sx={{ flex: 1 }}
+                                        sx={{ flex: 1, minWidth: 90 }}
                                         required
                                         inputProps={{ step: 'any', min: 0 }}
                                     />
@@ -147,14 +147,14 @@ function EntryForm({ open, onClose, periodId, customers, itemOptions, entry }) {
                                         onChange={(e) => setItem(index, 'unit_price', e.target.value)}
                                         error={!!errors[`items.${index}.unit_price`]}
                                         helperText={errors[`items.${index}.unit_price`]}
-                                        sx={{ flex: 1 }}
+                                        sx={{ flex: 1, minWidth: 110 }}
                                         required
                                         inputProps={{ step: 'any', min: 0 }}
                                     />
                                     <TextField
                                         label="Amount"
                                         value={peso(rowAmount(row))}
-                                        sx={{ flex: 1 }}
+                                        sx={{ flex: 1.3, minWidth: 140 }}
                                         disabled
                                     />
                                     <IconButton

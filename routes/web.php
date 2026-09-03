@@ -86,7 +86,9 @@ Route::middleware('auth')->group(function () {
     // Payments (against receivables — invoice-level payment records, optionally
     // allocated across that invoice's specific line items)
     Route::get('/payments', [PaymentController::class, 'index'])->name('payments.index');
+    Route::get('/payments/search-invoices', [PaymentController::class, 'searchInvoices'])->name('payments.search-invoices');
     Route::post('/payments', [PaymentController::class, 'store'])->name('payments.store');
+    Route::post('/payments/batch', [PaymentController::class, 'storeBatch'])->name('payments.batch.store');
     Route::delete('/payments/{payment}', [PaymentController::class, 'destroy'])->name('payments.destroy');
 
     // Payables (accounts payable — paying suppliers/vendors back for
