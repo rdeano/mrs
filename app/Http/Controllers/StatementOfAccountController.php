@@ -73,6 +73,7 @@ class StatementOfAccountController extends Controller
                 'invoice_no'   => $invoice->invoice_no,
                 'invoice_date' => $invoice->invoice_date->format('Y-m-d'),
                 'total_amount' => (float) $invoice->total_amount,
+                'status'       => $invoice->status,
                 'items'        => $invoice->items->map(fn ($item) => [
                     'item_name' => $item->item_name,
                     'amount'    => (float) $item->amount,

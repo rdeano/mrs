@@ -2,7 +2,7 @@ import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router } from '@inertiajs/react';
 import {
-    Autocomplete, Box, Button, Card, CardContent,
+    Autocomplete, Box, Button, Card, CardContent, Chip,
     Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     TextField, Typography,
 } from '@mui/material';
@@ -152,27 +152,35 @@ function SoaDocument({ statement, asOf, statementNo }) {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            rows.map(({ key, invoice, item, isFirst, span }) => (
-                                <TableRow key={key}>
-                                    {isFirst && (
-                                        <TableCell rowSpan={span} sx={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>
-                                            {usDate(invoice.invoice_date)}
-                                        </TableCell>
-                                    )}
-                                    {isFirst && (
-                                        <TableCell rowSpan={span} sx={{ verticalAlign: 'top' }}>
-                                            {invoice.invoice_no}
-                                        </TableCell>
-                                    )}
-                                    <TableCell>{item.item_name}</TableCell>
-                                    <TableCell align="right">{peso(item.amount)}</TableCell>
-                                    {isFirst && (
-                                        <TableCell rowSpan={span} align="right" sx={{ fontWeight: 700, verticalAlign: 'top' }}>
-                                            {peso(invoice.total_amount)}
-                                        </TableCell>
-                                    )}
-                                </TableRow>
-                            ))
+                            rows.map(({ key, invoice, item, isFirst, span }) => {
+                                const isPaid = invoice.status === 'paid';
+                                return (
+                                    <TableRow key={key} sx={{ opacity: isPaid ? 0.55 : 1 }}>
+                                        {isFirst && (
+                                            <TableCell rowSpan={span} sx={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                                                {usDate(invoice.invoice_date)}
+                                            </TableCell>
+                                        )}
+                                        {isFirst && (
+                                            <TableCell rowSpan={span} sx={{ verticalAlign: 'top' }}>
+                                                <Stack direction="row" spacing={1} alignItems="center">
+                                                    <span>{invoice.invoice_no}</span>
+                                                    {isPaid && (
+                                                        <Chip label="Paid" color="success" size="small" variant="filled" />
+                                                    )}
+                                                </Stack>
+                                            </TableCell>
+                                        )}
+                                        <TableCell sx={{ textDecoration: isPaid ? 'line-through' : 'none' }}>{item.item_name}</TableCell>
+                                        <TableCell align="right" sx={{ textDecoration: isPaid ? 'line-through' : 'none' }}>{peso(item.amount)}</TableCell>
+                                        {isFirst && (
+                                            <TableCell rowSpan={span} align="right" sx={{ fontWeight: 700, verticalAlign: 'top' }}>
+                                                {peso(invoice.total_amount)}
+                                            </TableCell>
+                                        )}
+                                    </TableRow>
+                                );
+                            })
                         )}
                     </TableBody>
                 </Table>
