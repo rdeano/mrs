@@ -33,7 +33,7 @@ class PaymentController extends Controller
             // and switch to each invoice's period, searching by invoice no. or
             // customer looks across every period at once.
             $currentPeriod = null;
-            $invoiceQuery = Invoice::with(['customer:id,name', 'period:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')->with('batch:id,check_no,bank_name')])
+            $invoiceQuery = Invoice::with(['customer:id,name,payment_terms_days', 'period:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')->with('batch:id,check_no,bank_name')])
                 ->where(function ($q) use ($search) {
                     $q->where('invoice_no', 'like', "%{$search}%")
                         ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', "%{$search}%"));
@@ -41,20 +41,24 @@ class PaymentController extends Controller
                 ->orderByDesc('invoice_date');
         } elseif ($agingActive) {
             $currentPeriod = null;
-            $invoiceQuery = Invoice::with(['customer:id,name', 'period:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')->with('batch:id,check_no,bank_name')])
+            // Due date is computed (invoice_date + the customer's current
+            // payment_terms_days), not stored — see Invoice::dueDate().
+            $invoiceQuery = Invoice::with(['customer:id,name,payment_terms_days', 'period:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')->with('batch:id,check_no,bank_name')])
                 ->whereIn('status', ['sent', 'partial', 'overdue'])
-                ->whereRaw('DATEDIFF(NOW(), due_date) BETWEEN ? AND ?', [
+                ->leftJoin('customers', 'customers.id', '=', 'invoices.customer_id')
+                ->whereRaw('DATEDIFF(NOW(), DATE_ADD(invoices.invoice_date, INTERVAL COALESCE(customers.payment_terms_days, 30) DAY)) BETWEEN ? AND ?', [
                     $request->filled('aging_from') ? (int) $request->aging_from : -100000,
                     $request->filled('aging_to') ? (int) $request->aging_to : 100000,
                 ])
-                ->orderBy('due_date');
+                ->select('invoices.*')
+                ->orderByRaw('DATE_ADD(invoices.invoice_date, INTERVAL COALESCE(customers.payment_terms_days, 30) DAY)');
         } else {
             $currentPeriod = $request->period_id
                 ? PnlPeriod::find($request->period_id)
                 : $periods->first();
 
             $invoiceQuery = $currentPeriod
-                ? Invoice::with(['customer:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')->with('batch:id,check_no,bank_name')])
+                ? Invoice::with(['customer:id,name,payment_terms_days', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')->with('batch:id,check_no,bank_name')])
                     ->where('pnl_period_id', $currentPeriod->id)
                     ->orderByRaw('CAST(invoice_no AS UNSIGNED) asc')
                     ->orderBy('invoice_no')
@@ -169,7 +173,7 @@ class PaymentController extends Controller
     {
         $search = trim((string) $request->get('q', ''));
 
-        $invoices = Invoice::with(['customer:id,name', 'period:id,name,is_closed', 'items.paymentItems'])
+        $invoices = Invoice::with(['customer:id,name,payment_terms_days', 'period:id,name,is_closed', 'items.paymentItems'])
             ->whereIn('status', ['sent', 'partial', 'overdue'])
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($q) use ($search) {

@@ -181,10 +181,12 @@ class DashboardController extends Controller
     }
 
     /**
-     * Buckets by days past due_date (now auto-calculated per invoice from its
-     * customer's payment terms). $from/$to are inclusive; null means unbounded
-     * on that side, so (null, 0) covers "not yet due" (including due today)
-     * and (61, null) covers everything more than 60 days overdue.
+     * Buckets by days past due date, computed on the fly as invoice_date +
+     * the customer's CURRENT payment_terms_days (never a stored due_date, so
+     * it can't go stale when a customer's terms change after the invoice was
+     * created). $from/$to are inclusive; null means unbounded on that side,
+     * so (null, 0) covers "not yet due" (including due today) and (61, null)
+     * covers everything more than 60 days overdue.
      *
      * The SUM is aliased as "amount_due" rather than "balance": Invoice has a
      * getBalanceAttribute() accessor, and aliasing a raw select as "balance"
@@ -195,11 +197,12 @@ class DashboardController extends Controller
     private function agingAmount(?int $from, ?int $to): float
     {
         return Invoice::whereIn('status', ['sent', 'partial', 'overdue'])
+            ->leftJoin('customers', 'customers.id', '=', 'invoices.customer_id')
             ->whereRaw(
-                'DATEDIFF(NOW(), due_date) BETWEEN ? AND ?',
+                'DATEDIFF(NOW(), DATE_ADD(invoices.invoice_date, INTERVAL COALESCE(customers.payment_terms_days, 30) DAY)) BETWEEN ? AND ?',
                 [$from ?? -100000, $to ?? 100000]
             )
-            ->selectRaw('SUM(total_amount - paid_amount) as amount_due')
+            ->selectRaw('SUM(invoices.total_amount - invoices.paid_amount) as amount_due')
             ->value('amount_due') ?? 0;
     }
 

@@ -31,7 +31,6 @@ class PaymentBatchTest extends TestCase
             'customer_id' => $customer->id,
             'pnl_period_id' => $period->id,
             'invoice_date' => '2026-01-05',
-            'due_date' => '2026-02-05',
             'status' => 'sent',
             'total_amount' => $amount,
             'paid_amount' => 0,
