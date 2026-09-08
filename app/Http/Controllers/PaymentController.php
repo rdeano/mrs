@@ -320,7 +320,7 @@ class PaymentController extends Controller
         // behalf — not just money that landed in the bank.
         $paid = (float) $invoice->payments()->sum('amount')
               + (float) $invoice->payments()->sum('tax_withheld');
-        $status = $paid <= 0 ? 'sent' : ($paid >= (float) $invoice->total_amount ? 'paid' : 'partial');
+        $status = $paid <= 0 ? 'sent' : (round($paid, 4) >= round((float) $invoice->total_amount, 4) ? 'paid' : 'partial');
 
         $invoice->update(['paid_amount' => $paid, 'status' => $status]);
     }

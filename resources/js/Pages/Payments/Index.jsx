@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
-    Box, Button, Card, CardContent, Chip, Dialog, DialogActions,
+    Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions,
     DialogContent, DialogTitle, Divider, FormControl, IconButton,
     InputLabel, List, ListItem, ListItemText, MenuItem, Select, Stack,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -328,7 +328,7 @@ function PaymentDialog({ open, onClose, invoice, canEdit }) {
     );
 }
 
-function MultiInvoicePaymentDialog({ open, onClose, onSaved }) {
+function MultiInvoicePaymentDialog({ open, onClose, onSaved, initialInvoices }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         payment_date: '',
         method: 'Check',
@@ -339,12 +339,31 @@ function MultiInvoicePaymentDialog({ open, onClose, onSaved }) {
         wt_cert_no: '',
         wt_cert_date: '',
         notes: '',
-        invoices: [],
+        invoices: (initialInvoices ?? []).map((inv) => ({
+            invoice_id: inv.id,
+            amount: '',
+            tax_withheld: '',
+            allocations: inv.items.map((it) => ({ invoice_item_id: it.id, amount: '' })),
+        })),
     });
-    const [meta, setMeta] = useState({}); // invoice_id -> invoice (items/balance) for display only
+    // invoice_id -> invoice (items/balance) for display only
+    const [meta, setMeta] = useState(() => {
+        const m = {};
+        (initialInvoices ?? []).forEach((inv) => { m[inv.id] = inv; });
+        return m;
+    });
     const [searchInput, setSearchInput] = useState('');
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
+    // Batch-level totals only — no per-invoice or per-item entry. Whatever is
+    // typed here gets applied across the selected invoices automatically
+    // (oldest/first-added first, capped at each invoice's own balance) and
+    // then, within each invoice, across its items — the user never touches
+    // that breakdown.
+    const [totalAmount, setTotalAmount] = useState(() => {
+        const sum = (initialInvoices ?? []).reduce((s, inv) => s + Math.max(0, Number(inv.balance) || 0), 0);
+        return sum > 0 ? sum.toFixed(2) : '';
+    });
     const [totalWt, setTotalWt] = useState('');
     const searchTimer = useRef(null);
 
@@ -369,75 +388,91 @@ function MultiInvoicePaymentDialog({ open, onClose, onSaved }) {
         setMeta((m) => ({ ...m, [invoice.id]: invoice }));
         setData('invoices', [
             ...data.invoices,
-            {
-                invoice_id: invoice.id,
-                amount: '',
-                tax_withheld: '',
-                allocations: invoice.items.map((it) => ({ invoice_item_id: it.id, amount: '' })),
-            },
+            { invoice_id: invoice.id, amount: '', tax_withheld: '', allocations: invoice.items.map((it) => ({ invoice_item_id: it.id, amount: '' })) },
         ]);
+        setTotalAmount((prev) => {
+            const next = (Number(prev) || 0) + Math.max(0, Number(invoice.balance) || 0);
+            return next > 0 ? next.toFixed(2) : '';
+        });
     };
 
     const removeInvoice = (invoiceId) => {
+        const entry = data.invoices.find((e) => e.invoice_id === invoiceId);
         setData('invoices', data.invoices.filter((e) => e.invoice_id !== invoiceId));
-    };
-
-    const updateEntry = (index, field, value) => {
-        setData('invoices', data.invoices.map((e, i) => (i === index ? { ...e, [field]: value } : e)));
-    };
-
-    const updateAllocation = (index, allocIndex, value) => {
-        setData('invoices', data.invoices.map((e, i) => {
-            if (i !== index) return e;
-            return { ...e, allocations: e.allocations.map((a, j) => (j === allocIndex ? { ...a, amount: value } : a)) };
-        }));
-    };
-
-    const autoFill = (index) => {
-        const entry = data.invoices[index];
-        const invoice = meta[entry.invoice_id];
-        let remaining = (Number(entry.amount) || 0) + (Number(entry.tax_withheld) || 0);
-        const next = invoice.items.map((it) => {
-            const cap = Math.max(0, it.balance);
-            const take = Math.min(cap, remaining);
-            remaining -= take;
-            return { invoice_item_id: it.id, amount: take > 0 ? take.toFixed(2) : '' };
+        setTotalAmount((prev) => {
+            const next = Math.max(0, (Number(prev) || 0) - (Number(entry?.amount) || 0));
+            return next > 0 ? next.toFixed(2) : '';
         });
-        updateEntry(index, 'allocations', next);
     };
 
-    // One 2307 certificate often covers the whole batch; this splits its
-    // total proportionally to each invoice's Amount Applied so the split
-    // roughly matches how much of the sale each invoice represents — the
-    // user can still hand-edit any invoice's share afterward.
-    const autoSplitWt = () => {
-        const total = Number(totalWt) || 0;
-        if (total <= 0 || data.invoices.length === 0) return;
-        const amountSum = data.invoices.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-        let remaining = total;
-        const next = data.invoices.map((e, i) => {
-            const isLast = i === data.invoices.length - 1;
-            const share = amountSum > 0 ? (Number(e.amount) || 0) / amountSum * total : total / data.invoices.length;
-            const amt = isLast ? remaining : Math.round(share * 100) / 100;
-            remaining -= amt;
-            return { ...e, tax_withheld: amt > 0 ? amt.toFixed(2) : '' };
+    // Single source of truth: Total Amount + Total Withholding Tax for the
+    // whole batch. This fans out, in order:
+    //   1. Total Amount across invoices, oldest/first-added first, each
+    //      capped at its own remaining balance.
+    //   2. Total Withholding Tax across invoices, proportional to how much
+    //      of the total each invoice ended up receiving.
+    //   3. Each invoice's own (amount + tax) across its line items, in
+    //      order, capped at each item's balance — same as the single-invoice
+    //      auto-fill, just run silently for every invoice in the batch.
+    const invoiceIdsKey = data.invoices.map((e) => e.invoice_id).join(',');
+    useEffect(() => {
+        if (data.invoices.length === 0) return;
+        const totalAmt = Number(totalAmount) || 0;
+        const totalTax = Number(totalWt) || 0;
+
+        let remainingAmt = totalAmt;
+        const amounts = data.invoices.map((e) => {
+            const cap = Math.max(0, Number(meta[e.invoice_id]?.balance) || 0);
+            const take = Math.min(cap, Math.max(0, remainingAmt));
+            remainingAmt -= take;
+            return take;
         });
-        setData('invoices', next);
-    };
 
+        const amountSum = amounts.reduce((s, a) => s + a, 0);
+        let remainingTax = totalTax;
+        const taxes = amounts.map((amt, i) => {
+            if (totalTax <= 0) return 0;
+            const isLast = i === amounts.length - 1;
+            const share = amountSum > 0 ? (amt / amountSum) * totalTax : totalTax / amounts.length;
+            const val = isLast ? remainingTax : Math.round(share * 100) / 100;
+            remainingTax -= val;
+            return val;
+        });
+
+        const nextInvoices = data.invoices.map((e, i) => {
+            const invoice = meta[e.invoice_id];
+            let remaining = amounts[i] + taxes[i];
+            const allocations = (invoice?.items ?? []).map((it) => {
+                const cap = Math.max(0, Number(it.balance) || 0);
+                const take = Math.min(cap, Math.max(0, remaining));
+                remaining -= take;
+                return { invoice_item_id: it.id, amount: take > 0 ? take.toFixed(2) : '' };
+            });
+            return {
+                ...e,
+                amount: amounts[i] > 0 ? amounts[i].toFixed(2) : '',
+                tax_withheld: taxes[i] > 0 ? taxes[i].toFixed(2) : '',
+                allocations,
+            };
+        });
+
+        const changed = JSON.stringify(nextInvoices) !== JSON.stringify(data.invoices);
+        if (changed) setData('invoices', nextInvoices);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [totalAmount, totalWt, invoiceIdsKey]);
+
+    const appliedTotal = data.invoices.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     const totalTaxWithheld = data.invoices.reduce((sum, e) => sum + (Number(e.tax_withheld) || 0), 0);
-    const grandTotal = data.invoices.reduce((sum, e) => sum + (Number(e.amount) || 0) + (Number(e.tax_withheld) || 0), 0);
-    const allBalanced = data.invoices.length >= 2 && data.invoices.every((e) => {
-        const settled = (Number(e.amount) || 0) + (Number(e.tax_withheld) || 0);
-        const allocated = e.allocations.reduce((s, a) => s + (Number(a.amount) || 0), 0);
-        return settled > 0 && Math.abs(settled - allocated) < 0.005;
-    });
+    const grandTotal = appliedTotal + totalTaxWithheld;
+    const unapplied = Math.max(0, Math.round(((Number(totalAmount) || 0) - appliedTotal) * 100) / 100);
+    const allApplied = data.invoices.length >= 2 && data.invoices.every((e) => (Number(e.amount) || 0) > 0);
 
     const handleClose = () => {
         reset();
         setMeta({});
         setResults([]);
         setSearchInput('');
+        setTotalAmount('');
         setTotalWt('');
         onClose();
     };
@@ -450,6 +485,7 @@ function MultiInvoicePaymentDialog({ open, onClose, onSaved }) {
                 setMeta({});
                 setResults([]);
                 setSearchInput('');
+                setTotalAmount('');
                 setTotalWt('');
                 onSaved();
             },
@@ -545,110 +581,77 @@ function MultiInvoicePaymentDialog({ open, onClose, onSaved }) {
                         {data.invoices.length > 0 && (
                             <Stack spacing={2}>
                                 <Divider />
-                                <Typography variant="caption" color="text.secondary">
-                                    WITHHOLDING TAX (optional — one 2307 certificate can cover this whole batch)
-                                </Typography>
+                                <Typography variant="caption" color="text.secondary">BATCH TOTALS</Typography>
                                 <Stack direction="row" spacing={2} alignItems="flex-start">
                                     <TextField
-                                        label="WT Cert No. (2307)" fullWidth
-                                        value={data.wt_cert_no}
-                                        onChange={(e) => setData('wt_cert_no', e.target.value)}
-                                        error={!!errors.wt_cert_no} helperText={errors.wt_cert_no}
-                                    />
-                                    <TextField
-                                        label="WT Cert Date" type="date" fullWidth
-                                        value={data.wt_cert_date}
-                                        onChange={(e) => setData('wt_cert_date', e.target.value)}
-                                        error={!!errors.wt_cert_date} helperText={errors.wt_cert_date}
-                                        InputLabelProps={{ shrink: true }}
-                                    />
-                                    <TextField
-                                        label="Total WT for this batch" type="number" fullWidth
-                                        value={totalWt}
-                                        onChange={(e) => setTotalWt(e.target.value)}
-                                        helperText="Split across invoices below, proportional to Amount Applied"
+                                        label="Total Amount" type="number" fullWidth required
+                                        value={totalAmount}
+                                        onChange={(e) => setTotalAmount(e.target.value)}
+                                        error={!!errors.amount}
+                                        helperText={errors.amount || 'Applied across invoices below, oldest first'}
                                         inputProps={{ step: 'any', min: 0 }}
                                     />
-                                    <Button type="button" onClick={autoSplitWt} sx={{ whiteSpace: 'nowrap', mt: 1 }}>
-                                        Split
-                                    </Button>
+                                    <TextField
+                                        label="Total Withholding Tax" type="number" fullWidth
+                                        value={totalWt}
+                                        onChange={(e) => setTotalWt(e.target.value)}
+                                        helperText="Optional — one 2307 certificate can cover this whole batch"
+                                        inputProps={{ step: 'any', min: 0 }}
+                                    />
                                 </Stack>
-                                {totalTaxWithheld > 0 && (
-                                    <Typography variant="caption" color="text.secondary">
-                                        Withholding tax currently allocated across invoices: {peso(totalTaxWithheld)}
+                                {totalWt !== '' && Number(totalWt) > 0 && (
+                                    <Stack direction="row" spacing={2}>
+                                        <TextField
+                                            label="WT Cert No. (2307)" fullWidth
+                                            value={data.wt_cert_no}
+                                            onChange={(e) => setData('wt_cert_no', e.target.value)}
+                                            error={!!errors.wt_cert_no} helperText={errors.wt_cert_no}
+                                        />
+                                        <TextField
+                                            label="WT Cert Date" type="date" fullWidth
+                                            value={data.wt_cert_date}
+                                            onChange={(e) => setData('wt_cert_date', e.target.value)}
+                                            error={!!errors.wt_cert_date} helperText={errors.wt_cert_date}
+                                            InputLabelProps={{ shrink: true }}
+                                        />
+                                    </Stack>
+                                )}
+                                {unapplied > 0.005 && (
+                                    <Typography variant="caption" color="error">
+                                        {peso(unapplied)} could not be applied — the selected invoices are already fully covered by the rest. Remove an invoice or lower the total.
                                     </Typography>
                                 )}
+
                                 <Divider />
                                 <Typography variant="caption" color="text.secondary">SELECTED INVOICES</Typography>
-                                {data.invoices.map((entry, index) => {
-                                    const invoice = meta[entry.invoice_id];
-                                    if (!invoice) return null;
-                                    const settled = (Number(entry.amount) || 0) + (Number(entry.tax_withheld) || 0);
-                                    const allocated = entry.allocations.reduce((s, a) => s + (Number(a.amount) || 0), 0);
-                                    const balanced = Math.abs(settled - allocated) < 0.005;
-                                    return (
-                                        <Card key={entry.invoice_id} variant="outlined">
-                                            <CardContent>
-                                                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1.5}>
-                                                    <Box>
-                                                        <Typography fontWeight={600}>#{invoice.invoice_no} — {invoice.customer?.name ?? '—'}</Typography>
-                                                        <Typography variant="caption" color="text.secondary">Balance: {peso(invoice.balance)}</Typography>
-                                                    </Box>
+                                <List disablePadding sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                                    {data.invoices.map((entry) => {
+                                        const invoice = meta[entry.invoice_id];
+                                        if (!invoice) return null;
+                                        const amt = Number(entry.amount) || 0;
+                                        const tax = Number(entry.tax_withheld) || 0;
+                                        return (
+                                            <ListItem
+                                                key={entry.invoice_id}
+                                                divider
+                                                secondaryAction={
                                                     <IconButton size="small" color="error" onClick={() => removeInvoice(entry.invoice_id)}>
                                                         <Delete fontSize="small" />
                                                     </IconButton>
-                                                </Stack>
-                                                <Stack direction="row" spacing={2} mb={1.5}>
-                                                    <TextField
-                                                        label="Amount Applied" type="number" size="small" fullWidth required
-                                                        value={entry.amount}
-                                                        onChange={(e) => updateEntry(index, 'amount', e.target.value)}
-                                                        error={!!errors[`invoices.${index}.amount`]}
-                                                        inputProps={{ step: 'any', min: 0 }}
-                                                    />
-                                                    <TextField
-                                                        label="Withholding Tax" type="number" size="small" fullWidth
-                                                        value={entry.tax_withheld}
-                                                        onChange={(e) => updateEntry(index, 'tax_withheld', e.target.value)}
-                                                        inputProps={{ step: 'any', min: 0 }}
-                                                    />
-                                                </Stack>
-                                                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
-                                                    <Typography variant="caption" color="text.secondary">ALLOCATE TO ITEMS</Typography>
-                                                    <Button type="button" size="small" onClick={() => autoFill(index)}>Auto-fill</Button>
-                                                </Stack>
-                                                <Stack spacing={1} mb={1}>
-                                                    {invoice.items.map((it, itIndex) => (
-                                                        <Stack key={it.id} direction="row" spacing={1.5} alignItems="center">
-                                                            <Box sx={{ flex: 2 }}>
-                                                                <Typography variant="body2">{it.item_name}</Typography>
-                                                                <Typography variant="caption" color="text.secondary">
-                                                                    Balance: {peso(it.balance)} of {peso(it.amount)}
-                                                                </Typography>
-                                                            </Box>
-                                                            <TextField
-                                                                label="Allocate" type="number" size="small" sx={{ flex: 1 }}
-                                                                value={entry.allocations[itIndex]?.amount ?? ''}
-                                                                onChange={(e) => updateAllocation(index, itIndex, e.target.value)}
-                                                                error={!!errors[`invoices.${index}.allocations.${itIndex}.amount`]}
-                                                                inputProps={{ step: 'any', min: 0 }}
-                                                            />
-                                                        </Stack>
-                                                    ))}
-                                                </Stack>
-                                                <Box sx={{
-                                                    bgcolor: balanced ? 'success.50' : 'error.50',
-                                                    border: '1px solid', borderColor: balanced ? 'success.200' : 'error.200',
-                                                    borderRadius: 2, px: 1.5, py: 0.75,
-                                                }}>
-                                                    <Typography variant="caption" color={balanced ? 'success.dark' : 'error.dark'}>
-                                                        Allocated {peso(allocated)} / {peso(settled)}
-                                                    </Typography>
-                                                </Box>
-                                            </CardContent>
-                                        </Card>
-                                    );
-                                })}
+                                                }
+                                            >
+                                                <ListItemText
+                                                    primary={`#${invoice.invoice_no} — ${invoice.customer?.name ?? '—'}`}
+                                                    secondary={
+                                                        `Balance: ${peso(invoice.balance)} · Applying ${peso(amt)}`
+                                                        + (tax > 0 ? ` + ${peso(tax)} WT` : '')
+                                                        + (amt <= 0 ? ' · not covered by the total above' : '')
+                                                    }
+                                                />
+                                            </ListItem>
+                                        );
+                                    })}
+                                </List>
                             </Stack>
                         )}
 
@@ -670,7 +673,7 @@ function MultiInvoicePaymentDialog({ open, onClose, onSaved }) {
                 <Divider />
                 <DialogActions sx={{ px: 3, py: 2 }}>
                     <Button type="button" onClick={handleClose} color="inherit">Cancel</Button>
-                    <Button type="submit" variant="contained" disabled={processing || !allBalanced}>
+                    <Button type="submit" variant="contained" disabled={processing || !allApplied}>
                         Record Payment
                     </Button>
                 </DialogActions>
@@ -693,6 +696,9 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
     const [activeInvoiceId, setActiveInvoiceId] = useState(null);
     const [multiOpen, setMultiOpen] = useState(false);
+    const [multiInitialInvoices, setMultiInitialInvoices] = useState([]);
+    const [multiInstance, setMultiInstance] = useState(0);
+    const [selectedIds, setSelectedIds] = useState([]);
     const [searchInput, setSearchInput] = useState(search ?? '');
     const searchTimer = useRef(null);
     const crossPeriod = Boolean(agingFilter) || Boolean(search);
@@ -705,6 +711,7 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
     // no more hunting for which period an invoice lives in.
     const handleSearchChange = (value) => {
         setSearchInput(value);
+        setSelectedIds([]);
         clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => {
             router.get('/payments', value.trim() ? { q: value.trim() } : {}, {
@@ -717,6 +724,7 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
 
     const changePeriod = (id) => {
         setSelectedPeriodId(id);
+        setSelectedIds([]);
         router.get('/payments', { period_id: id }, { preserveState: false });
     };
 
@@ -724,6 +732,32 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
         ...invoice,
         balance: Number(invoice.total_amount) - Number(invoice.paid_amount),
     });
+
+    const payableInvoices = invoices.filter((inv) => Number(inv.total_amount) - Number(inv.paid_amount) > 0.0001);
+    const allSelected = payableInvoices.length > 0 && payableInvoices.every((inv) => selectedIds.includes(inv.id));
+    const someSelected = selectedIds.length > 0 && !allSelected;
+
+    const toggleSelectAll = () => {
+        setSelectedIds(allSelected ? [] : payableInvoices.map((inv) => inv.id));
+    };
+
+    const toggleSelectOne = (id) => {
+        setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    };
+
+    const openMultiBlank = () => {
+        setMultiInitialInvoices([]);
+        setMultiInstance((n) => n + 1);
+        setMultiOpen(true);
+    };
+
+    const openMultiForSelection = () => {
+        setMultiInitialInvoices(
+            selectedIds.map((id) => invoiceWithBalance(invoices.find((i) => i.id === id))).filter(Boolean)
+        );
+        setMultiInstance((n) => n + 1);
+        setMultiOpen(true);
+    };
 
     const totals = invoices.reduce((acc, inv) => {
         acc.total += Number(inv.total_amount);
@@ -748,7 +782,7 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
                     {canEdit && (
-                        <Button startIcon={<Receipt />} variant="outlined" onClick={() => setMultiOpen(true)}>
+                        <Button startIcon={<Receipt />} variant="outlined" onClick={openMultiBlank}>
                             Multi-Invoice Payment
                         </Button>
                     )}
@@ -786,12 +820,43 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
                 </Stack>
             )}
 
+            {canEdit && selectedIds.length > 0 && (
+                <Stack direction="row" alignItems="center" spacing={1.5} mb={2}>
+                    <Chip
+                        color="primary"
+                        label={`${selectedIds.length} invoice${selectedIds.length > 1 ? 's' : ''} selected`}
+                        onDelete={() => setSelectedIds([])}
+                    />
+                    <Button
+                        variant="contained" size="small" startIcon={<Receipt />}
+                        onClick={openMultiForSelection}
+                        disabled={selectedIds.length < 2}
+                    >
+                        Pay Selected
+                    </Button>
+                    {selectedIds.length < 2 && (
+                        <Typography variant="caption" color="text.secondary">Select at least 2 invoices for a multi-invoice payment.</Typography>
+                    )}
+                </Stack>
+            )}
+
             <Card>
                 <CardContent sx={{ p: '0 !important' }}>
                     <TableContainer>
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
+                                    {canEdit && (
+                                        <TableCell padding="checkbox">
+                                            <Checkbox
+                                                size="small"
+                                                checked={allSelected}
+                                                indeterminate={someSelected}
+                                                onChange={toggleSelectAll}
+                                                disabled={payableInvoices.length === 0}
+                                            />
+                                        </TableCell>
+                                    )}
                                     <TableCell>Invoice No.</TableCell>
                                     <TableCell>Customer</TableCell>
                                     {crossPeriod && <TableCell>Period</TableCell>}
@@ -807,7 +872,7 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
                             <TableBody>
                                 {invoices.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={crossPeriod ? 10 : 9} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                        <TableCell colSpan={9 + (crossPeriod ? 1 : 0) + (canEdit ? 1 : 0)} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                                             {search
                                                 ? `No invoices match "${search}".`
                                                 : agingFilter
@@ -818,8 +883,19 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
                                 ) : (
                                     invoices.map((invoice) => {
                                         const inv = invoiceWithBalance(invoice);
+                                        const payable = inv.balance > 0.0001;
                                         return (
-                                            <TableRow key={inv.id} hover>
+                                            <TableRow key={inv.id} hover selected={selectedIds.includes(inv.id)}>
+                                                {canEdit && (
+                                                    <TableCell padding="checkbox">
+                                                        <Checkbox
+                                                            size="small"
+                                                            checked={selectedIds.includes(inv.id)}
+                                                            onChange={() => toggleSelectOne(inv.id)}
+                                                            disabled={!payable}
+                                                        />
+                                                    </TableCell>
+                                                )}
                                                 <TableCell fontWeight={500}>{inv.invoice_no}</TableCell>
                                                 <TableCell>{inv.customer?.name ?? '—'}</TableCell>
                                                 {crossPeriod && (
@@ -867,9 +943,11 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
             />
 
             <MultiInvoicePaymentDialog
+                key={multiInstance}
                 open={multiOpen}
                 onClose={() => setMultiOpen(false)}
-                onSaved={() => { setMultiOpen(false); router.reload({ only: ['invoices'] }); }}
+                onSaved={() => { setMultiOpen(false); setSelectedIds([]); router.reload({ only: ['invoices'] }); }}
+                initialInvoices={multiInitialInvoices}
             />
         </AppLayout>
     );
