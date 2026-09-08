@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
-    Box, Button, Card, CardContent, Chip, Dialog, DialogActions,
+    Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions,
     DialogContent, DialogTitle, Divider, FormControl, IconButton,
     InputLabel, List, ListItem, ListItemText, MenuItem, Select, Stack,
     Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Tabs, TextField, Typography,
 } from '@mui/material';
-import { Add, Delete, Payment as PaymentIcon } from '@mui/icons-material';
+import { Add, Delete, Payment as PaymentIcon, Print } from '@mui/icons-material';
 import { peso, longDate as fmt } from '@/utils/format';
 import SearchField from '@/Components/Shared/SearchField';
 
@@ -468,6 +468,129 @@ function ExpenseDialog({ open, onClose, expense, canEdit }) {
     );
 }
 
+// ── Purchase order print sheet (screen-hidden, shown only when printing) ──
+
+const PRINT_BRAND_RED = '#7A1F2B';
+
+function PurchaseOrderPrintPage({ po, isLast }) {
+    return (
+        <Box
+            sx={{
+                maxWidth: 850, mx: 'auto', bgcolor: '#fff', color: '#1a1a1a', p: 5,
+                pageBreakAfter: isLast ? 'auto' : 'always',
+            }}
+        >
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <Box
+                        component="img"
+                        src="/images/logo.jpg"
+                        alt="MRS Meat Trading"
+                        sx={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                    />
+                    <Typography variant="h5" fontWeight={800} sx={{ color: PRINT_BRAND_RED, letterSpacing: -0.3 }}>
+                        MRS MEAT TRADING
+                    </Typography>
+                </Stack>
+                <Typography variant="h4" fontWeight={800} letterSpacing={1} sx={{ color: PRINT_BRAND_RED }}>
+                    Purchase Order
+                </Typography>
+            </Stack>
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={4} mt={3} mb={3}>
+                <Box>
+                    <Typography variant="caption" fontWeight={700} letterSpacing={0.5} color="text.secondary">SUPPLIER</Typography>
+                    <Typography variant="body1" fontWeight={700} mt={0.5}>{po.supplier?.name ?? '—'}</Typography>
+                    {po.supplier?.contact_person && (
+                        <Typography variant="body2" color="text.secondary">{po.supplier.contact_person}</Typography>
+                    )}
+                    {po.supplier?.phone && (
+                        <Typography variant="body2" color="text.secondary">{po.supplier.phone}</Typography>
+                    )}
+                </Box>
+                <Box sx={{ minWidth: 220 }}>
+                    {[
+                        ['PO #:', `#${po.id}`],
+                        ['Date:', fmt(po.po_date)],
+                        ['Status:', STATUS_LABEL[po.status] ?? po.status],
+                    ].map(([label, value]) => (
+                        <Stack key={label} direction="row" justifyContent="space-between" spacing={2}>
+                            <Typography variant="body2" color="text.secondary">{label}</Typography>
+                            <Typography variant="body2" fontWeight={600}>{value}</Typography>
+                        </Stack>
+                    ))}
+                </Box>
+            </Stack>
+
+            <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                <Table size="small">
+                    <TableHead>
+                        <TableRow sx={{ bgcolor: 'grey.100' }}>
+                            <TableCell sx={{ fontWeight: 700 }}>Item</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Unit</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>Qty</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>Unit Price</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {po.items.map((it) => (
+                            <TableRow key={it.id}>
+                                <TableCell>{it.item_name}</TableCell>
+                                <TableCell>{it.unit}</TableCell>
+                                <TableCell align="right">{it.qty}</TableCell>
+                                <TableCell align="right">{peso(it.unit_price)}</TableCell>
+                                <TableCell align="right">{peso(it.amount)}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+
+            <Stack direction="row" justifyContent="flex-end" mt={2} mb={4}>
+                <Stack direction="row" spacing={3} alignItems="center" sx={{ minWidth: 280 }}>
+                    <Typography variant="body1" fontWeight={700} sx={{ flex: 1, textAlign: 'right' }}>Total</Typography>
+                    <Typography variant="h6" fontWeight={800} sx={{ color: PRINT_BRAND_RED }}>{peso(po.total_amount)}</Typography>
+                </Stack>
+            </Stack>
+
+            {po.notes && (
+                <Box mb={4}>
+                    <Typography variant="caption" fontWeight={700} letterSpacing={0.5} color="text.secondary">NOTES</Typography>
+                    <Typography variant="body2" mt={0.5}>{po.notes}</Typography>
+                </Box>
+            )}
+
+            <Stack direction="row" spacing={6} mt={6}>
+                <Box sx={{ flex: 1 }}>
+                    <Box sx={{ borderTop: '1px solid #999', pt: 0.5 }}>
+                        <Typography variant="body2" color="text.secondary">Prepared By:</Typography>
+                    </Box>
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                    <Box sx={{ borderTop: '1px solid #999', pt: 0.5 }}>
+                        <Typography variant="body2" color="text.secondary">Received By:</Typography>
+                    </Box>
+                </Box>
+            </Stack>
+        </Box>
+    );
+}
+
+// Rendered off-screen at all times; only becomes visible under print media,
+// while the interactive page (table, dialogs, filters) hides itself via the
+// matching '@media print': { display: 'none' } on that content instead.
+function PurchaseOrdersPrintSheet({ purchases: selected }) {
+    if (selected.length === 0) return null;
+    return (
+        <Box sx={{ display: 'none', '@media print': { display: 'block' } }}>
+            {selected.map((po, i) => (
+                <PurchaseOrderPrintPage key={po.id} po={po} isLast={i === selected.length - 1} />
+            ))}
+        </Box>
+    );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────
 
 export default function PayablesIndex({ periods, currentPeriod, expenses, purchases, search, outstandingActive, initialTab }) {
@@ -479,6 +602,7 @@ export default function PayablesIndex({ periods, currentPeriod, expenses, purcha
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
     const [activePurchaseId, setActivePurchaseId] = useState(null);
     const [activeExpenseId, setActiveExpenseId] = useState(null);
+    const [selectedPurchaseIds, setSelectedPurchaseIds] = useState([]);
     const [searchInput, setSearchInput] = useState(search ?? '');
     const searchTimer = useRef(null);
     const crossPeriod = Boolean(search) || Boolean(outstandingActive);
@@ -487,6 +611,7 @@ export default function PayablesIndex({ periods, currentPeriod, expenses, purcha
 
     const handleSearchChange = (value) => {
         setSearchInput(value);
+        setSelectedPurchaseIds([]);
         clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => {
             router.get('/payables', value.trim() ? { q: value.trim() } : {}, {
@@ -499,6 +624,7 @@ export default function PayablesIndex({ periods, currentPeriod, expenses, purcha
 
     const changePeriod = (id) => {
         setSelectedPeriodId(id);
+        setSelectedPurchaseIds([]);
         router.get('/payables', { period_id: id }, { preserveState: false });
     };
 
@@ -517,11 +643,24 @@ export default function PayablesIndex({ periods, currentPeriod, expenses, purcha
     const activePurchase = activePurchaseId ? purchaseRows.find((p) => p.id === activePurchaseId) : null;
     const activeExpense = activeExpenseId ? expenseRows.find((e) => e.id === activeExpenseId) : null;
 
+    const allPurchasesSelected = purchaseRows.length > 0 && purchaseRows.every((p) => selectedPurchaseIds.includes(p.id));
+    const somePurchasesSelected = selectedPurchaseIds.length > 0 && !allPurchasesSelected;
+    const togglePurchaseSelectAll = () => {
+        setSelectedPurchaseIds(allPurchasesSelected ? [] : purchaseRows.map((p) => p.id));
+    };
+    const togglePurchaseSelectOne = (id) => {
+        setSelectedPurchaseIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    };
+    const selectedPurchases = purchaseRows.filter((p) => selectedPurchaseIds.includes(p.id));
+
     return (
         <AppLayout title="Payables">
             <Head title="Payables" />
 
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={crossPeriod ? 2 : 3} flexWrap="wrap" gap={2}>
+            <Stack
+                direction="row" justifyContent="space-between" alignItems="center" mb={crossPeriod ? 2 : 3} flexWrap="wrap" gap={2}
+                sx={{ '@media print': { display: 'none' } }}
+            >
                 <Box>
                     <Typography variant="h5" fontWeight={700}>Payables</Typography>
                     <Typography variant="body2" color="text.secondary" mt={0.5}>
@@ -544,7 +683,7 @@ export default function PayablesIndex({ periods, currentPeriod, expenses, purcha
             </Stack>
 
             {search && (
-                <Stack direction="row" alignItems="center" spacing={1} mb={3}>
+                <Stack direction="row" alignItems="center" spacing={1} mb={3} sx={{ '@media print': { display: 'none' } }}>
                     <Chip
                         label={`Showing: results for "${search}" (all periods)`}
                         color="primary"
@@ -555,7 +694,7 @@ export default function PayablesIndex({ periods, currentPeriod, expenses, purcha
             )}
 
             {outstandingActive && !search && (
-                <Stack direction="row" alignItems="center" spacing={1} mb={3}>
+                <Stack direction="row" alignItems="center" spacing={1} mb={3} sx={{ '@media print': { display: 'none' } }}>
                     <Chip
                         label="Showing: all outstanding (unpaid/partial), all periods"
                         color="warning"
@@ -565,18 +704,40 @@ export default function PayablesIndex({ periods, currentPeriod, expenses, purcha
                 </Stack>
             )}
 
-            <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
+            <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, '@media print': { display: 'none' } }}>
                 <Tab value="purchases" label="Purchases" />
                 <Tab value="expenses" label="Expenses" />
             </Tabs>
 
+            {tab === 'purchases' && selectedPurchaseIds.length > 0 && (
+                <Stack direction="row" alignItems="center" spacing={1.5} mb={2} sx={{ '@media print': { display: 'none' } }}>
+                    <Chip
+                        color="primary"
+                        label={`${selectedPurchaseIds.length} purchase${selectedPurchaseIds.length > 1 ? 's' : ''} selected`}
+                        onDelete={() => setSelectedPurchaseIds([])}
+                    />
+                    <Button variant="contained" size="small" startIcon={<Print />} onClick={() => window.print()}>
+                        Print Selected
+                    </Button>
+                </Stack>
+            )}
+
             {tab === 'purchases' && (
-                <Card>
+                <Card sx={{ '@media print': { display: 'none' } }}>
                     <CardContent sx={{ p: '0 !important' }}>
                         <TableContainer>
                             <Table size="small">
                                 <TableHead>
                                     <TableRow>
+                                        <TableCell padding="checkbox">
+                                            <Checkbox
+                                                size="small"
+                                                checked={allPurchasesSelected}
+                                                indeterminate={somePurchasesSelected}
+                                                onChange={togglePurchaseSelectAll}
+                                                disabled={purchaseRows.length === 0}
+                                            />
+                                        </TableCell>
                                         <TableCell>Supplier</TableCell>
                                         {crossPeriod && <TableCell>Period</TableCell>}
                                         <TableCell>Date</TableCell>
@@ -590,13 +751,20 @@ export default function PayablesIndex({ periods, currentPeriod, expenses, purcha
                                 <TableBody>
                                     {purchaseRows.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={crossPeriod ? 8 : 7} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                            <TableCell colSpan={crossPeriod ? 9 : 8} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                                                 {search ? `No purchases match "${search}".` : 'No purchases for this period.'}
                                             </TableCell>
                                         </TableRow>
                                     ) : (
                                         purchaseRows.map((po) => (
-                                            <TableRow key={po.id} hover>
+                                            <TableRow key={po.id} hover selected={selectedPurchaseIds.includes(po.id)}>
+                                                <TableCell padding="checkbox">
+                                                    <Checkbox
+                                                        size="small"
+                                                        checked={selectedPurchaseIds.includes(po.id)}
+                                                        onChange={() => togglePurchaseSelectOne(po.id)}
+                                                    />
+                                                </TableCell>
                                                 <TableCell fontWeight={500}>{po.supplier?.name ?? '—'}</TableCell>
                                                 {crossPeriod && (
                                                     <TableCell sx={{ color: 'text.secondary' }}>{po.period?.name ?? '—'}</TableCell>
@@ -634,7 +802,7 @@ export default function PayablesIndex({ periods, currentPeriod, expenses, purcha
             )}
 
             {tab === 'expenses' && (
-                <Card>
+                <Card sx={{ '@media print': { display: 'none' } }}>
                     <CardContent sx={{ p: '0 !important' }}>
                         <TableContainer>
                             <Table size="small">
@@ -712,6 +880,8 @@ export default function PayablesIndex({ periods, currentPeriod, expenses, purcha
                 expense={activeExpense}
                 canEdit={canEditExpenses}
             />
+
+            <PurchaseOrdersPrintSheet purchases={selectedPurchases} />
         </AppLayout>
     );
 }
