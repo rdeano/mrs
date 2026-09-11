@@ -472,55 +472,64 @@ function ExpenseDialog({ open, onClose, expense, canEdit }) {
 
 const PRINT_BRAND_RED = '#7A1F2B';
 
+// Company letterhead — rendered once at the top of the print sheet, not
+// per PO, so a batch of several POs doesn't repeat the logo/title stack.
+function PrintLetterhead() {
+    return (
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ maxWidth: 850, mx: 'auto', mb: 1 }}>
+            <Stack direction="row" spacing={2} alignItems="center">
+                <Box
+                    component="img"
+                    src="/images/logo.jpg"
+                    alt="MRS Meat Trading"
+                    sx={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                />
+                <Typography variant="h5" fontWeight={800} sx={{ color: PRINT_BRAND_RED, letterSpacing: -0.3 }}>
+                    MRS MEAT TRADING
+                </Typography>
+            </Stack>
+            <Typography variant="h5" fontWeight={800} letterSpacing={1} sx={{ color: PRINT_BRAND_RED }}>
+                Purchase Orders
+            </Typography>
+        </Stack>
+    );
+}
+
 function PurchaseOrderPrintPage({ po, isLast }) {
     return (
         <Box
             sx={{
-                maxWidth: 850, mx: 'auto', bgcolor: '#fff', color: '#1a1a1a', p: 5,
-                pageBreakAfter: isLast ? 'auto' : 'always',
+                maxWidth: 850, mx: 'auto', bgcolor: '#fff', color: '#1a1a1a', p: 5, pt: 3,
+                // Let short POs share a page instead of forcing one page each —
+                // only keep a single PO's own content from splitting across a
+                // page boundary (it'll still overflow to a new page if it's
+                // genuinely taller than one, e.g. many line items).
+                breakInside: 'avoid',
+                pageBreakInside: 'avoid',
+                ...(!isLast && {
+                    mb: 4, pb: 4, borderBottom: '1px dashed', borderColor: 'grey.400',
+                }),
             }}
         >
-            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                <Stack direction="row" spacing={2} alignItems="center">
-                    <Box
-                        component="img"
-                        src="/images/logo.jpg"
-                        alt="MRS Meat Trading"
-                        sx={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                    />
-                    <Typography variant="h5" fontWeight={800} sx={{ color: PRINT_BRAND_RED, letterSpacing: -0.3 }}>
-                        MRS MEAT TRADING
-                    </Typography>
-                </Stack>
-                <Typography variant="h4" fontWeight={800} letterSpacing={1} sx={{ color: PRINT_BRAND_RED }}>
-                    Purchase Order
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ borderBottom: '2px solid', borderColor: PRINT_BRAND_RED, pb: 1, mb: 2 }}>
+                <Typography variant="h6" fontWeight={800} sx={{ color: PRINT_BRAND_RED }}>
+                    PO #{po.id}
                 </Typography>
+                <Stack direction="row" spacing={3}>
+                    <Typography variant="body2" color="text.secondary">Date: <Typography component="span" variant="body2" fontWeight={600} color="text.primary">{fmt(po.po_date)}</Typography></Typography>
+                    <Typography variant="body2" color="text.secondary">Status: <Typography component="span" variant="body2" fontWeight={600} color="text.primary">{STATUS_LABEL[po.status] ?? po.status}</Typography></Typography>
+                </Stack>
             </Stack>
 
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={4} mt={3} mb={3}>
-                <Box>
-                    <Typography variant="caption" fontWeight={700} letterSpacing={0.5} color="text.secondary">SUPPLIER</Typography>
-                    <Typography variant="body1" fontWeight={700} mt={0.5}>{po.supplier?.name ?? '—'}</Typography>
-                    {po.supplier?.contact_person && (
-                        <Typography variant="body2" color="text.secondary">{po.supplier.contact_person}</Typography>
-                    )}
-                    {po.supplier?.phone && (
-                        <Typography variant="body2" color="text.secondary">{po.supplier.phone}</Typography>
-                    )}
-                </Box>
-                <Box sx={{ minWidth: 220 }}>
-                    {[
-                        ['PO #:', `#${po.id}`],
-                        ['Date:', fmt(po.po_date)],
-                        ['Status:', STATUS_LABEL[po.status] ?? po.status],
-                    ].map(([label, value]) => (
-                        <Stack key={label} direction="row" justifyContent="space-between" spacing={2}>
-                            <Typography variant="body2" color="text.secondary">{label}</Typography>
-                            <Typography variant="body2" fontWeight={600}>{value}</Typography>
-                        </Stack>
-                    ))}
-                </Box>
-            </Stack>
+            <Box mb={3}>
+                <Typography variant="caption" fontWeight={700} letterSpacing={0.5} color="text.secondary">SUPPLIER</Typography>
+                <Typography variant="body1" fontWeight={700} mt={0.5}>{po.supplier?.name ?? '—'}</Typography>
+                {(po.supplier?.contact_person || po.supplier?.phone) && (
+                    <Typography variant="body2" color="text.secondary">
+                        {[po.supplier?.contact_person, po.supplier?.phone].filter(Boolean).join(' · ')}
+                    </Typography>
+                )}
+            </Box>
 
             <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                 <Table size="small">
@@ -584,6 +593,7 @@ function PurchaseOrdersPrintSheet({ purchases: selected }) {
     if (selected.length === 0) return null;
     return (
         <Box sx={{ display: 'none', '@media print': { display: 'block' } }}>
+            <PrintLetterhead />
             {selected.map((po, i) => (
                 <PurchaseOrderPrintPage key={po.id} po={po} isLast={i === selected.length - 1} />
             ))}

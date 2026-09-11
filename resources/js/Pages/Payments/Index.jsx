@@ -407,10 +407,13 @@ function MultiInvoicePaymentDialog({ open, onClose, onSaved, initialInvoices }) 
 
     // Single source of truth: Total Amount + Total Withholding Tax for the
     // whole batch. This fans out, in order:
-    //   1. Total Amount across invoices, oldest/first-added first, each
-    //      capped at its own remaining balance.
-    //   2. Total Withholding Tax across invoices, proportional to how much
-    //      of the total each invoice ended up receiving.
+    //   1. Total Amount + Total Withholding Tax combined, across invoices,
+    //      oldest/first-added first, each capped at its own remaining
+    //      balance — so no invoice is ever asked to settle more (cash + tax
+    //      together) than it actually owes.
+    //   2. Total Withholding Tax split across invoices proportional to how
+    //      much each ended up settling, then Amount = settled - tax — this
+    //      keeps tax within what each invoice was capped to in step 1.
     //   3. Each invoice's own (amount + tax) across its line items, in
     //      order, capped at each item's balance — same as the single-invoice
     //      auto-fill, just run silently for every invoice in the batch.
@@ -420,24 +423,27 @@ function MultiInvoicePaymentDialog({ open, onClose, onSaved, initialInvoices }) 
         const totalAmt = Number(totalAmount) || 0;
         const totalTax = Number(totalWt) || 0;
 
-        let remainingAmt = totalAmt;
-        const amounts = data.invoices.map((e) => {
+        let remainingSettled = totalAmt + totalTax;
+        const settled = data.invoices.map((e) => {
             const cap = Math.max(0, Number(meta[e.invoice_id]?.balance) || 0);
-            const take = Math.min(cap, Math.max(0, remainingAmt));
-            remainingAmt -= take;
+            const take = Math.min(cap, Math.max(0, remainingSettled));
+            remainingSettled -= take;
             return take;
         });
 
-        const amountSum = amounts.reduce((s, a) => s + a, 0);
+        const settledSum = settled.reduce((s, a) => s + a, 0);
         let remainingTax = totalTax;
-        const taxes = amounts.map((amt, i) => {
+        const taxes = settled.map((amt, i) => {
             if (totalTax <= 0) return 0;
-            const isLast = i === amounts.length - 1;
-            const share = amountSum > 0 ? (amt / amountSum) * totalTax : totalTax / amounts.length;
+            const isLast = i === settled.length - 1;
+            // A fraction of this invoice's own settled amount, so it can
+            // never exceed what that invoice was capped to above.
+            const share = settledSum > 0 ? (amt / settledSum) * totalTax : totalTax / settled.length;
             const val = isLast ? remainingTax : Math.round(share * 100) / 100;
             remainingTax -= val;
             return val;
         });
+        const amounts = settled.map((amt, i) => Math.max(0, Math.round((amt - taxes[i]) * 100) / 100));
 
         const nextInvoices = data.invoices.map((e, i) => {
             const invoice = meta[e.invoice_id];
