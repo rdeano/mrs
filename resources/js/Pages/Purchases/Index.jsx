@@ -2,15 +2,16 @@ import { useMemo, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
-    Autocomplete, Box, Button, Card, CardContent, Chip, Dialog, DialogActions,
+    Autocomplete, Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions,
     DialogContent, DialogTitle, Divider, FormControl, IconButton,
     InputLabel, MenuItem, Select, Stack, Table, TableBody,
     TableCell, TableContainer, TableHead, TableRow, TextField,
     Typography, Tooltip,
 } from '@mui/material';
-import { Add, Delete, Edit, AutoAwesome } from '@mui/icons-material';
+import { Add, Delete, Edit, AutoAwesome, Print } from '@mui/icons-material';
 import { peso, longDate as fmt } from '@/utils/format';
 import SearchField from '@/Components/Shared/SearchField';
+import PurchaseOrdersPrintSheet from '@/Components/Purchases/PrintSheet';
 
 const emptyItem = () => ({ item_name: '', qty: '', unit_price: '' });
 
@@ -201,9 +202,11 @@ export default function PurchasesIndex({ periods, currentPeriod, entries, suppli
     const [editEntry, setEditEntry] = useState(null);
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
     const [search, setSearch] = useState('');
+    const [selectedIds, setSelectedIds] = useState([]);
 
     const changePeriod = (id) => {
         setSelectedPeriodId(id);
+        setSelectedIds([]);
         router.get('/purchases', { period_id: id }, { preserveState: false });
     };
 
@@ -235,11 +238,21 @@ export default function PurchasesIndex({ periods, currentPeriod, entries, suppli
         }));
     });
 
+    const allSelected = filteredEntries.length > 0 && filteredEntries.every((po) => selectedIds.includes(po.id));
+    const someSelected = selectedIds.length > 0 && !allSelected;
+    const toggleSelectAll = () => {
+        setSelectedIds(allSelected ? [] : filteredEntries.map((po) => po.id));
+    };
+    const toggleSelectOne = (id) => {
+        setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    };
+    const selectedPurchases = entries.filter((po) => selectedIds.includes(po.id));
+
     return (
         <AppLayout title="Purchases">
             <Head title="Purchases" />
 
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2} sx={{ '@media print': { display: 'none' } }}>
                 <Box>
                     <Stack direction="row" alignItems="center" spacing={1}>
                         <Typography variant="h5" fontWeight={700}>Purchases</Typography>
@@ -269,12 +282,34 @@ export default function PurchasesIndex({ periods, currentPeriod, entries, suppli
                 </Stack>
             </Stack>
 
-            <Card>
+            {selectedIds.length > 0 && (
+                <Stack direction="row" alignItems="center" spacing={1.5} mb={2} sx={{ '@media print': { display: 'none' } }}>
+                    <Chip
+                        color="primary"
+                        label={`${selectedIds.length} purchase${selectedIds.length > 1 ? 's' : ''} selected`}
+                        onDelete={() => setSelectedIds([])}
+                    />
+                    <Button variant="contained" size="small" startIcon={<Print />} onClick={() => window.print()}>
+                        Print Selected
+                    </Button>
+                </Stack>
+            )}
+
+            <Card sx={{ '@media print': { display: 'none' } }}>
                 <CardContent sx={{ p: '0 !important' }}>
                     <TableContainer>
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
+                                    <TableCell padding="checkbox">
+                                        <Checkbox
+                                            size="small"
+                                            checked={allSelected}
+                                            indeterminate={someSelected}
+                                            onChange={toggleSelectAll}
+                                            disabled={filteredEntries.length === 0}
+                                        />
+                                    </TableCell>
                                     <TableCell>Supplier</TableCell>
                                     <TableCell>Item</TableCell>
                                     <TableCell align="right">Qty</TableCell>
@@ -287,13 +322,22 @@ export default function PurchasesIndex({ periods, currentPeriod, entries, suppli
                             <TableBody>
                                 {rows.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                        <TableCell colSpan={8} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                                             {search ? 'No purchases match your search.' : 'No purchases for this period.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     rows.map(({ key, po, item, isFirst, span }) => (
-                                        <TableRow key={key} hover>
+                                        <TableRow key={key} hover selected={selectedIds.includes(po.id)}>
+                                            {isFirst && (
+                                                <TableCell rowSpan={span} padding="checkbox" sx={{ verticalAlign: 'top' }}>
+                                                    <Checkbox
+                                                        size="small"
+                                                        checked={selectedIds.includes(po.id)}
+                                                        onChange={() => toggleSelectOne(po.id)}
+                                                    />
+                                                </TableCell>
+                                            )}
                                             {isFirst && (
                                                 <TableCell rowSpan={span} fontWeight={500} sx={{ verticalAlign: 'top' }}>
                                                     {po.supplier?.name ?? '—'}
@@ -347,6 +391,8 @@ export default function PurchasesIndex({ periods, currentPeriod, entries, suppli
                 itemOptions={itemOptions}
                 entry={editEntry}
             />
+
+            <PurchaseOrdersPrintSheet purchases={selectedPurchases} />
         </AppLayout>
     );
 }

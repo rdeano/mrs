@@ -2,15 +2,16 @@ import { useMemo, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
-    Autocomplete, Box, Button, Card, CardContent, Chip, Dialog, DialogActions,
+    Autocomplete, Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions,
     DialogContent, DialogTitle, Divider, FormControl, IconButton,
     InputLabel, MenuItem, Select, Stack, Table, TableBody,
     TableCell, TableContainer, TableHead, TableRow, TextField,
     Typography, Tooltip,
 } from '@mui/material';
-import { Add, Delete, Edit, AutoAwesome } from '@mui/icons-material';
+import { Add, Delete, Edit, AutoAwesome, Print } from '@mui/icons-material';
 import { peso, longDate as fmt } from '@/utils/format';
 import SearchField from '@/Components/Shared/SearchField';
+import ExpensesPrintSheet from '@/Components/Expenses/PrintSheet';
 
 function EntryForm({ open, onClose, periodId, categories, entry }) {
     const editing = Boolean(entry);
@@ -139,9 +140,11 @@ export default function ExpensesIndex({ periods, currentPeriod, entries, categor
     const [editEntry, setEditEntry] = useState(null);
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
     const [search, setSearch] = useState('');
+    const [selectedIds, setSelectedIds] = useState([]);
 
     const changePeriod = (id) => {
         setSelectedPeriodId(id);
+        setSelectedIds([]);
         router.get('/expenses', { period_id: id }, { preserveState: false });
     };
 
@@ -162,11 +165,21 @@ export default function ExpensesIndex({ periods, currentPeriod, entries, categor
         ));
     }, [entries, search]);
 
+    const allSelected = filteredEntries.length > 0 && filteredEntries.every((row) => selectedIds.includes(row.id));
+    const someSelected = selectedIds.length > 0 && !allSelected;
+    const toggleSelectAll = () => {
+        setSelectedIds(allSelected ? [] : filteredEntries.map((row) => row.id));
+    };
+    const toggleSelectOne = (id) => {
+        setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    };
+    const selectedExpenses = entries.filter((row) => selectedIds.includes(row.id));
+
     return (
         <AppLayout title="Expenses">
             <Head title="Expenses" />
 
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2} sx={{ '@media print': { display: 'none' } }}>
                 <Box>
                     <Stack direction="row" alignItems="center" spacing={1}>
                         <Typography variant="h5" fontWeight={700}>Expenses</Typography>
@@ -196,12 +209,34 @@ export default function ExpensesIndex({ periods, currentPeriod, entries, categor
                 </Stack>
             </Stack>
 
-            <Card>
+            {selectedIds.length > 0 && (
+                <Stack direction="row" alignItems="center" spacing={1.5} mb={2} sx={{ '@media print': { display: 'none' } }}>
+                    <Chip
+                        color="primary"
+                        label={`${selectedIds.length} expense${selectedIds.length > 1 ? 's' : ''} selected`}
+                        onDelete={() => setSelectedIds([])}
+                    />
+                    <Button variant="contained" size="small" startIcon={<Print />} onClick={() => window.print()}>
+                        Print Selected
+                    </Button>
+                </Stack>
+            )}
+
+            <Card sx={{ '@media print': { display: 'none' } }}>
                 <CardContent sx={{ p: '0 !important' }}>
                     <TableContainer>
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
+                                    <TableCell padding="checkbox">
+                                        <Checkbox
+                                            size="small"
+                                            checked={allSelected}
+                                            indeterminate={someSelected}
+                                            onChange={toggleSelectAll}
+                                            disabled={filteredEntries.length === 0}
+                                        />
+                                    </TableCell>
                                     <TableCell>Date</TableCell>
                                     <TableCell>Category</TableCell>
                                     <TableCell>Description</TableCell>
@@ -214,13 +249,20 @@ export default function ExpensesIndex({ periods, currentPeriod, entries, categor
                             <TableBody>
                                 {filteredEntries.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                        <TableCell colSpan={8} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                                             {search ? 'No expenses match your search.' : 'No expenses for this period.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     filteredEntries.map((row) => (
-                                        <TableRow key={row.id} hover>
+                                        <TableRow key={row.id} hover selected={selectedIds.includes(row.id)}>
+                                            <TableCell padding="checkbox">
+                                                <Checkbox
+                                                    size="small"
+                                                    checked={selectedIds.includes(row.id)}
+                                                    onChange={() => toggleSelectOne(row.id)}
+                                                />
+                                            </TableCell>
                                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmt(row.expense_date)}</TableCell>
                                             <TableCell fontWeight={500}>{row.category?.name ?? '—'}</TableCell>
                                             <TableCell sx={{ color: 'text.secondary' }}>{row.description ?? '—'}</TableCell>
@@ -265,6 +307,8 @@ export default function ExpensesIndex({ periods, currentPeriod, entries, categor
                 categories={categories}
                 entry={editEntry}
             />
+
+            <ExpensesPrintSheet expenses={selectedExpenses} />
         </AppLayout>
     );
 }

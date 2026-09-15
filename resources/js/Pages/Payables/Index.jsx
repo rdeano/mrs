@@ -11,6 +11,7 @@ import {
 import { Add, Delete, Payment as PaymentIcon, Print } from '@mui/icons-material';
 import { peso, longDate as fmt } from '@/utils/format';
 import SearchField from '@/Components/Shared/SearchField';
+import PurchaseOrdersPrintSheet from '@/Components/Purchases/PrintSheet';
 
 const STATUS_COLOR = { unpaid: 'default', partial: 'warning', paid: 'success' };
 const STATUS_LABEL = { unpaid: 'Unpaid', partial: 'Partial', paid: 'Paid' };
@@ -465,139 +466,6 @@ function ExpenseDialog({ open, onClose, expense, canEdit }) {
                 </>
             )}
         </Dialog>
-    );
-}
-
-// ── Purchase order print sheet (screen-hidden, shown only when printing) ──
-
-const PRINT_BRAND_RED = '#7A1F2B';
-
-// Company letterhead — rendered once at the top of the print sheet, not
-// per PO, so a batch of several POs doesn't repeat the logo/title stack.
-function PrintLetterhead() {
-    return (
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ maxWidth: 850, mx: 'auto', mb: 1 }}>
-            <Stack direction="row" spacing={2} alignItems="center">
-                <Box
-                    component="img"
-                    src="/images/logo.jpg"
-                    alt="MRS Meat Trading"
-                    sx={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                />
-                <Typography variant="h5" fontWeight={800} sx={{ color: PRINT_BRAND_RED, letterSpacing: -0.3 }}>
-                    MRS MEAT TRADING
-                </Typography>
-            </Stack>
-            <Typography variant="h5" fontWeight={800} letterSpacing={1} sx={{ color: PRINT_BRAND_RED }}>
-                Purchase Orders
-            </Typography>
-        </Stack>
-    );
-}
-
-function PurchaseOrderPrintPage({ po, isLast }) {
-    return (
-        <Box
-            sx={{
-                maxWidth: 850, mx: 'auto', bgcolor: '#fff', color: '#1a1a1a', p: 5, pt: 3,
-                // Let short POs share a page instead of forcing one page each —
-                // only keep a single PO's own content from splitting across a
-                // page boundary (it'll still overflow to a new page if it's
-                // genuinely taller than one, e.g. many line items).
-                breakInside: 'avoid',
-                pageBreakInside: 'avoid',
-                ...(!isLast && {
-                    mb: 4, pb: 4, borderBottom: '1px dashed', borderColor: 'grey.400',
-                }),
-            }}
-        >
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ borderBottom: '2px solid', borderColor: PRINT_BRAND_RED, pb: 1, mb: 2 }}>
-                <Typography variant="h6" fontWeight={800} sx={{ color: PRINT_BRAND_RED }}>
-                    PO #{po.id}
-                </Typography>
-                <Stack direction="row" spacing={3}>
-                    <Typography variant="body2" color="text.secondary">Date: <Typography component="span" variant="body2" fontWeight={600} color="text.primary">{fmt(po.po_date)}</Typography></Typography>
-                    <Typography variant="body2" color="text.secondary">Status: <Typography component="span" variant="body2" fontWeight={600} color="text.primary">{STATUS_LABEL[po.status] ?? po.status}</Typography></Typography>
-                </Stack>
-            </Stack>
-
-            <Box mb={3}>
-                <Typography variant="caption" fontWeight={700} letterSpacing={0.5} color="text.secondary">SUPPLIER</Typography>
-                <Typography variant="body1" fontWeight={700} mt={0.5}>{po.supplier?.name ?? '—'}</Typography>
-                {(po.supplier?.contact_person || po.supplier?.phone) && (
-                    <Typography variant="body2" color="text.secondary">
-                        {[po.supplier?.contact_person, po.supplier?.phone].filter(Boolean).join(' · ')}
-                    </Typography>
-                )}
-            </Box>
-
-            <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                <Table size="small">
-                    <TableHead>
-                        <TableRow sx={{ bgcolor: 'grey.100' }}>
-                            <TableCell sx={{ fontWeight: 700 }}>Item</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Unit</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700 }}>Qty</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700 }}>Unit Price</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {po.items.map((it) => (
-                            <TableRow key={it.id}>
-                                <TableCell>{it.item_name}</TableCell>
-                                <TableCell>{it.unit}</TableCell>
-                                <TableCell align="right">{it.qty}</TableCell>
-                                <TableCell align="right">{peso(it.unit_price)}</TableCell>
-                                <TableCell align="right">{peso(it.amount)}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-
-            <Stack direction="row" justifyContent="flex-end" mt={2} mb={4}>
-                <Stack direction="row" spacing={3} alignItems="center" sx={{ minWidth: 280 }}>
-                    <Typography variant="body1" fontWeight={700} sx={{ flex: 1, textAlign: 'right' }}>Total</Typography>
-                    <Typography variant="h6" fontWeight={800} sx={{ color: PRINT_BRAND_RED }}>{peso(po.total_amount)}</Typography>
-                </Stack>
-            </Stack>
-
-            {po.notes && (
-                <Box mb={4}>
-                    <Typography variant="caption" fontWeight={700} letterSpacing={0.5} color="text.secondary">NOTES</Typography>
-                    <Typography variant="body2" mt={0.5}>{po.notes}</Typography>
-                </Box>
-            )}
-
-            <Stack direction="row" spacing={6} mt={6}>
-                <Box sx={{ flex: 1 }}>
-                    <Box sx={{ borderTop: '1px solid #999', pt: 0.5 }}>
-                        <Typography variant="body2" color="text.secondary">Prepared By:</Typography>
-                    </Box>
-                </Box>
-                <Box sx={{ flex: 1 }}>
-                    <Box sx={{ borderTop: '1px solid #999', pt: 0.5 }}>
-                        <Typography variant="body2" color="text.secondary">Received By:</Typography>
-                    </Box>
-                </Box>
-            </Stack>
-        </Box>
-    );
-}
-
-// Rendered off-screen at all times; only becomes visible under print media,
-// while the interactive page (table, dialogs, filters) hides itself via the
-// matching '@media print': { display: 'none' } on that content instead.
-function PurchaseOrdersPrintSheet({ purchases: selected }) {
-    if (selected.length === 0) return null;
-    return (
-        <Box sx={{ display: 'none', '@media print': { display: 'block' } }}>
-            <PrintLetterhead />
-            {selected.map((po, i) => (
-                <PurchaseOrderPrintPage key={po.id} po={po} isLast={i === selected.length - 1} />
-            ))}
-        </Box>
     );
 }
 
