@@ -207,7 +207,7 @@ function SoaDocument({ statement, asOf, statementNo }) {
                 <Typography variant="body2" fontWeight={700} mt={0.5}>Mrs meat trading</Typography>
                 <Typography variant="body2" color="text.secondary">Stall 136 Meat Section, Brgy 5 A , Davao City</Typography>
                 <Typography variant="body2" color="text.secondary">0967-147-1656</Typography>
-                <Typography variant="body2" color="text.secondary">mrsmeattarding2026@gmail.com</Typography>
+                <Typography variant="body2" color="text.secondary">mrsmeattrading2026@gmail.com</Typography>
                 <Typography variant="body2" fontWeight={700} mt={1}>Thank You For Your Business</Typography>
             </Box>
 
