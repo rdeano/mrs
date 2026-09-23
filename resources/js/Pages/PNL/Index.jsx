@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
     Box, Card, CardContent, Typography, Stack, Select, MenuItem,
     FormControl, InputLabel, Chip, Button, Divider, IconButton, TextField,
+    Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
 import { Add, Delete, Lock, LockOpen, Edit, Check, Close } from '@mui/icons-material';
 import PnlGrid from '@/Components/Pnl/PnlGrid';
@@ -97,6 +98,82 @@ function ProfitDistribution({ distribution, canEdit }) {
     );
 }
 
+function EditPeriodDialog({ open, onClose, period }) {
+    const { data, setData, put, processing, errors, reset } = useForm({
+        name:       period?.name ?? '',
+        start_date: period?.start_date ?? '',
+        end_date:   period?.end_date ?? '',
+        notes:      period?.notes ?? '',
+    });
+
+    const submit = (e) => {
+        e.preventDefault();
+        put(`/pnl/periods/${period.id}`, { onSuccess: () => { reset(); onClose(); } });
+    };
+
+    return (
+        <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+            <form onSubmit={submit}>
+                <DialogTitle fontWeight={700}>Edit Period</DialogTitle>
+                <Divider />
+                <DialogContent>
+                    <Stack spacing={2.5} pt={1}>
+                        <TextField
+                            label="Period Name"
+                            value={data.name}
+                            onChange={(e) => setData('name', e.target.value)}
+                            error={!!errors.name}
+                            helperText={errors.name}
+                            fullWidth
+                            autoFocus
+                            required
+                        />
+                        <Stack direction="row" spacing={2}>
+                            <TextField
+                                label="Start Date"
+                                type="date"
+                                value={data.start_date}
+                                onChange={(e) => setData('start_date', e.target.value)}
+                                error={!!errors.start_date}
+                                helperText={errors.start_date}
+                                fullWidth
+                                required
+                                InputLabelProps={{ shrink: true }}
+                            />
+                            <TextField
+                                label="End Date"
+                                type="date"
+                                value={data.end_date}
+                                onChange={(e) => setData('end_date', e.target.value)}
+                                error={!!errors.end_date}
+                                helperText={errors.end_date}
+                                fullWidth
+                                required
+                                InputLabelProps={{ shrink: true }}
+                            />
+                        </Stack>
+                        <TextField
+                            label="Notes"
+                            value={data.notes}
+                            onChange={(e) => setData('notes', e.target.value)}
+                            multiline
+                            rows={2}
+                            fullWidth
+                        />
+                    </Stack>
+                </DialogContent>
+                <Divider />
+                <DialogActions sx={{ px: 3, py: 2 }}>
+                    <Button type="button" onClick={onClose} color="inherit">Cancel</Button>
+                    <Button type="submit" variant="contained" disabled={processing}>
+                        {processing ? 'Saving…' : 'Save Changes'}
+                    </Button>
+                </DialogActions>
+            </form>
+        </Dialog>
+    );
+}
+
 const SOURCE_PERMISSION = {
     expense:  'manage expenses',
     purchase: 'manage purchases',
@@ -109,6 +186,7 @@ const SOURCE_PERMISSION = {
 export default function PnlIndex({ periods, currentPeriod, categories, dates, expenseCategories, suppliers, customers, employees, itemOptions, purchaseLines, profitDistribution }) {
     const [selectedPeriodId, setSelectedPeriodId] = useState(currentPeriod?.id ?? '');
     const [quickAdd, setQuickAdd] = useState(null);
+    const [editPeriodOpen, setEditPeriodOpen] = useState(false);
     const { auth } = usePage().props;
     const canEdit = auth.permissions.includes('manage pnl') && !currentPeriod?.is_closed;
 
@@ -154,6 +232,16 @@ export default function PnlIndex({ periods, currentPeriod, categories, dates, ex
                             ))}
                         </Select>
                     </FormControl>
+                    {currentPeriod && auth.permissions.includes('manage pnl') && (
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<Edit />}
+                            onClick={() => setEditPeriodOpen(true)}
+                        >
+                            Edit
+                        </Button>
+                    )}
                     {currentPeriod && (
                         <Button
                             variant="outlined"
@@ -227,6 +315,15 @@ export default function PnlIndex({ periods, currentPeriod, categories, dates, ex
                 itemOptions={itemOptions}
                 purchaseLines={purchaseLines}
             />
+
+            {currentPeriod && (
+                <EditPeriodDialog
+                    key={currentPeriod.id}
+                    open={editPeriodOpen}
+                    onClose={() => setEditPeriodOpen(false)}
+                    period={currentPeriod}
+                />
+            )}
         </AppLayout>
     );
 }

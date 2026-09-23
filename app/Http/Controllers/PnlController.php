@@ -38,9 +38,12 @@ class PnlController extends Controller
     {
         $periods = PnlPeriod::orderByDesc('start_date')->get(['id', 'name', 'start_date', 'end_date', 'is_closed', 'bir_savings_percent']);
 
-        $currentPeriod = $request->period_id
-            ? PnlPeriod::find($request->period_id)
-            : $periods->first();
+        // Always a full-column fetch (never reuse the trimmed $periods row
+        // above) — the Edit Period dialog needs `notes`, and submitting it
+        // with a row that never had that column would silently blank out
+        // any notes already saved on the period.
+        $currentPeriodId = $request->period_id ?: $periods->first()?->id;
+        $currentPeriod = $currentPeriodId ? PnlPeriod::find($currentPeriodId) : null;
 
         $categories = [];
         $dates      = [];
@@ -493,6 +496,20 @@ class PnlController extends Controller
         $period = PnlPeriod::create($validated);
 
         return redirect('/pnl?period_id=' . $period->id)->with('success', 'Period created.');
+    }
+
+    public function updatePeriod(Request $request, PnlPeriod $period): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name'       => 'required|string|max:100',
+            'start_date' => 'required|date',
+            'end_date'   => 'required|date|after_or_equal:start_date',
+            'notes'      => 'nullable|string',
+        ]);
+
+        $period->update($validated);
+
+        return back()->with('success', 'Period updated.');
     }
 
     public function destroyPeriod(PnlPeriod $period): RedirectResponse

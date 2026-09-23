@@ -4,7 +4,7 @@ import { router } from '@inertiajs/react';
 import {
     AppBar, Avatar, Box, Divider, Drawer, IconButton,
     List, ListItem, ListItemButton, ListItemIcon, ListItemText,
-    Menu, MenuItem, Snackbar, Alert, Toolbar, Typography,
+    Menu, MenuItem, Snackbar, Alert, Toolbar, Tooltip, Typography,
 } from '@mui/material';
 import {
     Menu as MenuIcon,
@@ -33,6 +33,17 @@ import {
 } from '@mui/icons-material';
 
 const DRAWER_WIDTH = 252;
+const MINI_WIDTH = 72;
+const COLLAPSE_STORAGE_KEY = 'mrs_sidebar_collapsed';
+
+function readStoredCollapsed() {
+    if (typeof window === 'undefined') return false;
+    try {
+        return window.localStorage.getItem(COLLAPSE_STORAGE_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
 
 const NAV_GROUPS = [
     {
@@ -92,6 +103,21 @@ export default function AppLayout({ children, title }) {
     const [mobileOpen, setMobileOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
     const [snackbar, setSnackbar] = useState({ open: false });
+    // Desktop-only: collapsed persists (icons-only sidebar); hovering while
+    // collapsed previews the full menu without pushing page content around,
+    // since the Drawer paper is fixed-position and can overlay past the
+    // narrow spacer reserved for it below.
+    const [collapsed, setCollapsed] = useState(readStoredCollapsed);
+    const [hovering, setHovering] = useState(false);
+    const expanded = !collapsed || hovering;
+
+    const toggleCollapsed = () => {
+        setCollapsed((prev) => {
+            const next = !prev;
+            try { window.localStorage.setItem(COLLAPSE_STORAGE_KEY, next ? '1' : '0'); } catch { /* ignore */ }
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (flash?.success) {
@@ -110,7 +136,7 @@ export default function AppLayout({ children, title }) {
             ? pathname === '/dashboard'
             : pathname.startsWith(href);
 
-    const drawer = (
+    const renderDrawer = (isExpanded, { showToggle = false } = {}) => (
         <Box
             sx={{
                 height: '100%',
@@ -118,42 +144,85 @@ export default function AppLayout({ children, title }) {
                 flexDirection: 'column',
                 bgcolor: '#0F172A',
                 color: 'rgba(255,255,255,0.85)',
+                overflow: 'hidden',
             }}
         >
             {/* Logo */}
-            <Box sx={{ px: 3, py: 2, borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                 <Box
-                    component="img"
-                    src="/images/logo.jpg"
-                    alt="MRS Meat Trading"
-                    sx={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                />
-                <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="h6" fontWeight={700} color="#fff" letterSpacing={-0.3} noWrap>
-                        MRS Trading
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', display: 'block', mt: 0.25 }} noWrap>
-                        Meat Trading System
-                    </Typography>
+                    sx={{
+                        pl: isExpanded ? 2 : 0,
+                        pr: isExpanded ? 1 : 0,
+                        py: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: isExpanded ? 'space-between' : 'center',
+                        gap: 1,
+                    }}
+                >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, overflow: 'hidden' }}>
+                        <Box
+                            component="img"
+                            src="/images/logo.jpg"
+                            alt="MRS Meat Trading"
+                            sx={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                        />
+                        {isExpanded && (
+                            <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="subtitle1" fontWeight={700} color="#fff" letterSpacing={-0.3} noWrap>
+                                    MRS Trading
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', display: 'block', mt: 0.25 }} noWrap>
+                                    Meat Trading System
+                                </Typography>
+                            </Box>
+                        )}
+                    </Box>
+                    {showToggle && isExpanded && (
+                        <Tooltip title="Collapse menu">
+                            <IconButton
+                                size="small"
+                                onClick={toggleCollapsed}
+                                sx={{ color: 'rgba(255,255,255,0.5)', flexShrink: 0, p: 0.5, '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)' } }}
+                            >
+                                <MenuIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
                 </Box>
+                {showToggle && !isExpanded && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', pb: 1 }}>
+                        <Tooltip title="Expand menu" placement="right">
+                            <IconButton
+                                size="small"
+                                onClick={toggleCollapsed}
+                                sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)' } }}
+                            >
+                                <MenuIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
+                )}
             </Box>
 
             {/* Nav */}
             <Box className="dark-scroll" sx={{ flex: 1, overflow: 'hidden auto', py: 1.5 }}>
                 {NAV_GROUPS.map((group, gi) => (
                     <Box key={gi} sx={{ mb: 1 }}>
-                        {group.label && (
+                        {group.label && (isExpanded ? (
                             <Typography
                                 variant="caption"
                                 sx={{ px: 3, py: 1, display: 'block', color: 'rgba(255,255,255,0.3)', fontWeight: 600, letterSpacing: '0.08em' }}
                             >
                                 {group.label}
                             </Typography>
-                        )}
+                        ) : (
+                            gi > 0 && <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)', mx: 2, my: 1 }} />
+                        ))}
                         <List disablePadding dense>
                             {group.items.map((item) =>
                                 canSee(item.permission) ? (
-                                    <ListItem key={item.href} disablePadding sx={{ px: 1.5 }}>
+                                    <ListItem key={item.href} disablePadding sx={{ px: isExpanded ? 1.5 : 1 }}>
                                         <ListItemButton
                                             component={Link}
                                             href={item.href}
@@ -161,6 +230,7 @@ export default function AppLayout({ children, title }) {
                                             sx={{
                                                 borderRadius: 1.5,
                                                 py: 0.85,
+                                                justifyContent: isExpanded ? 'flex-start' : 'center',
                                                 color: isActive(item.href) ? '#fff' : 'rgba(255,255,255,0.6)',
                                                 bgcolor: isActive(item.href) ? 'rgba(37,99,235,0.75)' : 'transparent',
                                                 '&:hover': {
@@ -175,16 +245,19 @@ export default function AppLayout({ children, title }) {
                                         >
                                             <ListItemIcon
                                                 sx={{
-                                                    minWidth: 34,
+                                                    minWidth: isExpanded ? 34 : 0,
+                                                    justifyContent: 'center',
                                                     color: isActive(item.href) ? '#fff' : 'rgba(255,255,255,0.5)',
                                                 }}
                                             >
                                                 {item.icon}
                                             </ListItemIcon>
-                                            <ListItemText
-                                                primary={item.label}
-                                                primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: isActive(item.href) ? 600 : 400 }}
-                                            />
+                                            {isExpanded && (
+                                                <ListItemText
+                                                    primary={item.label}
+                                                    primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: isActive(item.href) ? 600 : 400 }}
+                                                />
+                                            )}
                                         </ListItemButton>
                                     </ListItem>
                                 ) : null
@@ -195,27 +268,33 @@ export default function AppLayout({ children, title }) {
             </Box>
 
             {/* Bottom user info */}
-            <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <Box sx={{ p: isExpanded ? 2 : 1.5, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                 <Box
                     onClick={(e) => setAnchorEl(e.currentTarget)}
                     sx={{
-                        display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: isExpanded ? 1.5 : 0,
+                        justifyContent: isExpanded ? 'flex-start' : 'center',
+                        cursor: 'pointer',
                         p: 1, borderRadius: 2,
                         '&:hover': { bgcolor: 'rgba(255,255,255,0.06)' },
                     }}
                 >
-                    <Avatar sx={{ width: 32, height: 32, bgcolor: '#2563EB', fontSize: '0.75rem' }}>
+                    <Avatar sx={{ width: 32, height: 32, bgcolor: '#2563EB', fontSize: '0.75rem', flexShrink: 0 }}>
                         {initials(auth?.user?.name)}
                     </Avatar>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" fontWeight={600} color="#fff" noWrap>
-                            {auth?.user?.name}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)' }} noWrap>
-                            {auth?.user?.email}
-                        </Typography>
-                    </Box>
-                    <KeyboardArrowDown sx={{ color: 'rgba(255,255,255,0.4)', fontSize: 18 }} />
+                    {isExpanded && (
+                        <>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography variant="body2" fontWeight={600} color="#fff" noWrap>
+                                    {auth?.user?.name}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)' }} noWrap>
+                                    {auth?.user?.email}
+                                </Typography>
+                            </Box>
+                            <KeyboardArrowDown sx={{ color: 'rgba(255,255,255,0.4)', fontSize: 18 }} />
+                        </>
+                    )}
                 </Box>
             </Box>
         </Box>
@@ -245,7 +324,10 @@ export default function AppLayout({ children, title }) {
             </AppBar>
 
             {/* Sidebar */}
-            <Box component="nav" sx={{ width: { sm: DRAWER_WIDTH }, flexShrink: { sm: 0 }, '@media print': { display: 'none' } }}>
+            <Box
+                component="nav"
+                sx={{ width: { sm: collapsed ? MINI_WIDTH : DRAWER_WIDTH }, flexShrink: { sm: 0 }, transition: 'width 0.2s ease', '@media print': { display: 'none' } }}
+            >
                 <Drawer
                     variant="temporary"
                     open={mobileOpen}
@@ -256,17 +338,26 @@ export default function AppLayout({ children, title }) {
                         '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box', border: 0, overflow: 'hidden' },
                     }}
                 >
-                    {drawer}
+                    {renderDrawer(true)}
                 </Drawer>
                 <Drawer
                     variant="permanent"
-                    sx={{
-                        display: { xs: 'none', sm: 'block' },
-                        '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box', border: 0, overflow: 'hidden' },
+                    sx={{ display: { xs: 'none', sm: 'block' } }}
+                    PaperProps={{
+                        onMouseEnter: () => collapsed && setHovering(true),
+                        onMouseLeave: () => setHovering(false),
+                        sx: {
+                            width: expanded ? DRAWER_WIDTH : MINI_WIDTH,
+                            boxSizing: 'border-box',
+                            border: 0,
+                            overflow: 'hidden',
+                            transition: 'width 0.2s ease',
+                            zIndex: (t) => t.zIndex.drawer + 1,
+                        },
                     }}
                     open
                 >
-                    {drawer}
+                    {renderDrawer(expanded, { showToggle: true })}
                 </Drawer>
             </Box>
 
@@ -276,9 +367,10 @@ export default function AppLayout({ children, title }) {
                     flexGrow: 1,
                     display: 'flex',
                     flexDirection: 'column',
-                    width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
+                    width: { sm: `calc(100% - ${collapsed ? MINI_WIDTH : DRAWER_WIDTH}px)` },
                     minWidth: 0,
                     mt: { xs: 7, sm: 0 },
+                    transition: 'width 0.2s ease',
                     '@media print': { width: '100%', mt: 0 },
                 }}
             >

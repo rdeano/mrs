@@ -51,6 +51,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/pnl/bir-savings-percent', [PnlController::class, 'updateBirSavingsPercent'])->name('pnl.bir-savings-percent.update');
     Route::get('/pnl/periods/create', [PnlController::class, 'createPeriod'])->name('pnl.periods.create');
     Route::post('/pnl/periods', [PnlController::class, 'storePeriod'])->name('pnl.periods.store');
+    Route::put('/pnl/periods/{period}', [PnlController::class, 'updatePeriod'])->name('pnl.periods.update');
     Route::delete('/pnl/periods/{period}', [PnlController::class, 'destroyPeriod'])->name('pnl.periods.destroy');
 
     // Wastages
