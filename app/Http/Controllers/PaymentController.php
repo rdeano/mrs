@@ -33,7 +33,7 @@ class PaymentController extends Controller
             // and switch to each invoice's period, searching by invoice no. or
             // customer looks across every period at once.
             $currentPeriod = null;
-            $invoiceQuery = Invoice::with(['customer:id,name,payment_terms_days', 'period:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')->with('batch:id,check_no,bank_name')])
+            $invoiceQuery = Invoice::with(['customer:id,name,payment_terms_days,allow_zero_payment', 'period:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')->with('batch:id,check_no,bank_name')])
                 ->where(function ($q) use ($search) {
                     $q->where('invoice_no', 'like', "%{$search}%")
                         ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', "%{$search}%"));
@@ -43,7 +43,7 @@ class PaymentController extends Controller
             $currentPeriod = null;
             // Due date is computed (invoice_date + the customer's current
             // payment_terms_days), not stored — see Invoice::dueDate().
-            $invoiceQuery = Invoice::with(['customer:id,name,payment_terms_days', 'period:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')->with('batch:id,check_no,bank_name')])
+            $invoiceQuery = Invoice::with(['customer:id,name,payment_terms_days,allow_zero_payment', 'period:id,name', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')->with('batch:id,check_no,bank_name')])
                 ->whereIn('status', ['sent', 'partial', 'overdue'])
                 ->leftJoin('customers', 'customers.id', '=', 'invoices.customer_id')
                 ->whereRaw('DATEDIFF(NOW(), DATE_ADD(invoices.invoice_date, INTERVAL COALESCE(customers.payment_terms_days, 30) DAY)) BETWEEN ? AND ?', [
@@ -58,7 +58,7 @@ class PaymentController extends Controller
                 : $periods->first();
 
             $invoiceQuery = $currentPeriod
-                ? Invoice::with(['customer:id,name,payment_terms_days', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')->with('batch:id,check_no,bank_name')])
+                ? Invoice::with(['customer:id,name,payment_terms_days,allow_zero_payment', 'items.paymentItems', 'payments' => fn ($q) => $q->orderByDesc('payment_date')->with('batch:id,check_no,bank_name')])
                     ->where('pnl_period_id', $currentPeriod->id)
                     ->orderByRaw('CAST(invoice_no AS UNSIGNED) asc')
                     ->orderBy('invoice_no')
@@ -88,7 +88,7 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'invoice_id'                 => 'required|exists:invoices,id',
             'payment_date'                => 'required|date',
-            'amount'                      => 'required|numeric|min:0.01',
+            'amount'                      => 'required|numeric|min:0',
             'tax_withheld'                => 'nullable|numeric|min:0',
             'wt_cert_no'                  => 'nullable|string|max:100',
             'wt_cert_date'                => 'nullable|date',
@@ -105,8 +105,25 @@ class PaymentController extends Controller
 
         $taxWithheld = $validated['tax_withheld'] ?? 0;
 
-        $invoice = Invoice::with('items.paymentItems')->findOrFail($validated['invoice_id']);
+        $invoice = Invoice::with('items.paymentItems', 'customer')->findOrFail($validated['invoice_id']);
         abort_if($invoice->period?->is_closed, 403, 'Period is closed.');
+
+        if ($invoice->status === 'cancelled') {
+            throw ValidationException::withMessages([
+                'amount' => 'This invoice is already cancelled — delete that ₱0 entry from its payment history first to reopen it.',
+            ]);
+        }
+
+        // Amount must normally be a real cash/check receipt (> 0). The one
+        // exception: a customer flagged "allow ₱0 payments" can record a ₱0
+        // entry to explicitly close out a cancelled order — recomputeInvoice()
+        // reads that as "write this off" and marks the invoice Cancelled
+        // rather than leaving it to sit as Unpaid forever.
+        if ($validated['amount'] <= 0 && $taxWithheld <= 0 && ! $invoice->customer?->allow_zero_payment) {
+            throw ValidationException::withMessages([
+                'amount' => 'Amount received must be greater than 0. To close out a cancelled order with ₱0, enable "Allow ₱0 payments" for this customer.',
+            ]);
+        }
 
         $allocations = collect($validated['allocations'])->filter(fn ($a) => $a['amount'] > 0)->values();
 
@@ -231,6 +248,11 @@ class PaymentController extends Controller
 
         foreach ($validated['invoices'] as $entry) {
             abort_if($invoices[$entry['invoice_id']]->period?->is_closed, 403, 'One of the selected invoices is in a closed period.');
+            if ($invoices[$entry['invoice_id']]->status === 'cancelled') {
+                throw ValidationException::withMessages([
+                    'invoices' => 'One of the selected invoices is cancelled and can\'t be paid.',
+                ]);
+            }
         }
 
         DB::transaction(function () use ($validated, $invoices) {
@@ -320,7 +342,15 @@ class PaymentController extends Controller
         // behalf — not just money that landed in the bank.
         $paid = (float) $invoice->payments()->sum('amount')
               + (float) $invoice->payments()->sum('tax_withheld');
-        $status = $paid <= 0 ? 'sent' : (round($paid, 4) >= round((float) $invoice->total_amount, 4) ? 'paid' : 'partial');
+
+        if ($paid <= 0 && $invoice->customer?->allow_zero_payment && $invoice->payments()->exists()) {
+            // A ₱0 payment was explicitly recorded against a customer that
+            // allows it — that's the "write this off, nothing is coming in"
+            // signal, so it reads as Cancelled rather than Unpaid.
+            $status = 'cancelled';
+        } else {
+            $status = $paid <= 0 ? 'sent' : (round($paid, 4) >= round((float) $invoice->total_amount, 4) ? 'paid' : 'partial');
+        }
 
         $invoice->update(['paid_amount' => $paid, 'status' => $status]);
     }

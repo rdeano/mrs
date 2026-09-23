@@ -12,8 +12,8 @@ import { Add, Delete, Payment as PaymentIcon, Receipt } from '@mui/icons-materia
 import { peso, longDate as fmt } from '@/utils/format';
 import SearchField from '@/Components/Shared/SearchField';
 
-const STATUS_COLOR = { sent: 'default', partial: 'warning', paid: 'success', overdue: 'error', draft: 'default' };
-const STATUS_LABEL = { sent: 'Unpaid', partial: 'Partial', paid: 'Paid', overdue: 'Overdue', draft: 'Draft' };
+const STATUS_COLOR = { sent: 'default', partial: 'warning', paid: 'success', overdue: 'error', draft: 'default', cancelled: 'default' };
+const STATUS_LABEL = { sent: 'Unpaid', partial: 'Partial', paid: 'Paid', overdue: 'Overdue', draft: 'Draft', cancelled: 'Cancelled' };
 const METHODS = ['Cash', 'Check', 'Bank Transfer', 'GCash', 'Other'];
 
 function itemPaidStatus(item) {
@@ -22,7 +22,7 @@ function itemPaidStatus(item) {
     return { label: 'Partial', color: 'warning' };
 }
 
-function PaymentForm({ invoice, onSaved, onCancel }) {
+function PaymentForm({ invoice, allowZero, onSaved, onCancel }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         invoice_id: invoice.id,
         payment_date: '',
@@ -75,7 +75,8 @@ function PaymentForm({ invoice, onSaved, onCancel }) {
                         label="Amount Received" type="number" fullWidth required autoFocus
                         value={data.amount}
                         onChange={(e) => setData('amount', e.target.value)}
-                        error={!!errors.amount} helperText={errors.amount || 'Actual cash/check amount'}
+                        error={!!errors.amount}
+                        helperText={errors.amount || (allowZero ? '₱0 allowed for this customer — closes the invoice out as Cancelled' : 'Actual cash/check amount')}
                         inputProps={{ step: 'any', min: 0 }}
                     />
                     <TextField
@@ -207,7 +208,7 @@ function PaymentForm({ invoice, onSaved, onCancel }) {
             <Divider sx={{ mt: 2.5 }} />
             <DialogActions sx={{ px: 0, py: 2 }}>
                 <Button type="button" onClick={onCancel} color="inherit">Back</Button>
-                <Button type="submit" variant="contained" disabled={processing || !balanced || amountNum <= 0}>
+                <Button type="submit" variant="contained" disabled={processing || !balanced || (amountNum <= 0 && !allowZero)}>
                     Record Payment
                 </Button>
             </DialogActions>
@@ -220,8 +221,18 @@ function PaymentDialog({ open, onClose, invoice, canEdit }) {
 
     if (!invoice) return null;
 
+    const allowZero = Boolean(invoice.customer?.allow_zero_payment);
+    const isCancelled = invoice.status === 'cancelled';
+    // A cancelled order can still open the form to record its ₱0 close-out
+    // even at ₱0 balance — everyone else only gets the button once there's
+    // an actual balance to collect against.
+    const canRecordPayment = !isCancelled && (invoice.balance > 0.0001 || (allowZero && invoice.payments.length === 0));
+
     const handleDeletePayment = (id) => {
-        if (!confirm('Delete this payment? Its item allocations will be removed too.')) return;
+        const msg = isCancelled
+            ? 'Reopen this invoice by deleting its ₱0 entry? It goes back to Unpaid.'
+            : 'Delete this payment? Its item allocations will be removed too.';
+        if (!confirm(msg)) return;
         router.delete(`/payments/${id}`, { preserveScroll: true });
     };
 
@@ -231,12 +242,13 @@ function PaymentDialog({ open, onClose, invoice, canEdit }) {
                 Payments — #{invoice.invoice_no}
                 <Typography variant="body2" color="text.secondary" fontWeight={400} mt={0.5}>
                     {invoice.customer?.name ?? '—'} · Total {peso(invoice.total_amount)}
+                    {isCancelled && <Chip label="Cancelled" size="small" color="default" variant="outlined" sx={{ ml: 1 }} />}
                 </Typography>
             </DialogTitle>
             <Divider />
             <DialogContent>
                 {mode === 'form' ? (
-                    <PaymentForm invoice={invoice} onSaved={() => setMode('list')} onCancel={() => setMode('list')} />
+                    <PaymentForm invoice={invoice} allowZero={allowZero} onSaved={() => setMode('list')} onCancel={() => setMode('list')} />
                 ) : (
                     <>
                         <Typography variant="caption" color="text.secondary">ITEMS</Typography>
@@ -308,10 +320,15 @@ function PaymentDialog({ open, onClose, invoice, canEdit }) {
                             </List>
                         )}
 
-                        {canEdit && invoice.balance > 0.0001 && (
+                        {canEdit && canRecordPayment && (
                             <Button startIcon={<Add />} sx={{ mt: 2 }} onClick={() => setMode('form')}>
-                                Record Payment
+                                {invoice.balance > 0.0001 ? 'Record Payment' : 'Cancel Order (₱0)'}
                             </Button>
+                        )}
+                        {isCancelled && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
+                                Delete the ₱0 entry above to reopen this invoice.
+                            </Typography>
                         )}
                     </>
                 )}
@@ -734,12 +751,18 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
         router.get('/payments', { period_id: id }, { preserveState: false });
     };
 
-    const invoiceWithBalance = (invoice) => ({
+    // invoice can be undefined here: the active/selected invoice may have just
+    // dropped out of `invoices` (e.g. cancelling it removes it from this
+    // aging/status-filtered view on reload), so this must not crash the render.
+    const invoiceWithBalance = (invoice) => (invoice ? ({
         ...invoice,
         balance: Number(invoice.total_amount) - Number(invoice.paid_amount),
-    });
+    }) : null);
 
-    const payableInvoices = invoices.filter((inv) => Number(inv.total_amount) - Number(inv.paid_amount) > 0.0001);
+    // Cancelled invoices can still show a nonzero balance (nothing was ever
+    // collected on them), but they must never be selectable for a real
+    // multi-invoice cash payment.
+    const payableInvoices = invoices.filter((inv) => inv.status !== 'cancelled' && Number(inv.total_amount) - Number(inv.paid_amount) > 0.0001);
     const allSelected = payableInvoices.length > 0 && payableInvoices.every((inv) => selectedIds.includes(inv.id));
     const someSelected = selectedIds.length > 0 && !allSelected;
 
@@ -889,7 +912,7 @@ export default function PaymentsIndex({ periods, currentPeriod, invoices, agingF
                                 ) : (
                                     invoices.map((invoice) => {
                                         const inv = invoiceWithBalance(invoice);
-                                        const payable = inv.balance > 0.0001;
+                                        const payable = inv.status !== 'cancelled' && inv.balance > 0.0001;
                                         return (
                                             <TableRow key={inv.id} hover selected={selectedIds.includes(inv.id)}>
                                                 {canEdit && (

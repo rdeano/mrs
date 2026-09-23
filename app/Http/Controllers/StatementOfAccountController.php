@@ -50,6 +50,13 @@ class StatementOfAccountController extends Controller
             ->get();
 
         $previousBalance = $previousInvoices->sum(function (Invoice $invoice) {
+            // A cancelled order was written off, not collected — it must not
+            // still read as money the customer owes (its paid_amount stays
+            // ₱0, so this can't rely on the paid/total math netting to 0 the
+            // way a genuinely paid invoice does).
+            if ($invoice->status === 'cancelled') {
+                return 0;
+            }
             $paid = (float) $invoice->payments->sum('amount') + (float) $invoice->payments->sum('tax_withheld');
             return (float) $invoice->total_amount - $paid;
         });
@@ -80,7 +87,11 @@ class StatementOfAccountController extends Controller
                 ])->values(),
             ]);
 
-        $newCharges = $periodInvoices->sum('total_amount');
+        // Cancelled invoices stay in the itemized list below (for a paper
+        // trail), but a written-off order was never a real charge, so it
+        // must not count toward what's owed — same reasoning as
+        // $previousBalance above.
+        $newCharges = $periodInvoices->where('status', '!=', 'cancelled')->sum('total_amount');
 
         return [
             'customer' => [

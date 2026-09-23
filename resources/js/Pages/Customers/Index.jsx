@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
-    Box, Button, Card, CardContent, Chip, Dialog, DialogActions,
-    DialogContent, DialogTitle, Divider, FormControl, IconButton,
+    Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions,
+    DialogContent, DialogTitle, Divider, FormControl, FormControlLabel, IconButton,
     InputLabel, MenuItem, Select, Stack, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, TextField, Typography,
 } from '@mui/material';
@@ -22,6 +22,7 @@ function CustomerForm({ open, onClose, customer }) {
         contact_person:      customer?.contact_person      ?? '',
         address:             customer?.address             ?? '',
         payment_terms_days:  customer?.payment_terms_days  ?? 30,
+        allow_zero_payment:  customer?.allow_zero_payment  ?? false,
         notes:               customer?.notes               ?? '',
     });
 
@@ -104,6 +105,16 @@ function CustomerForm({ open, onClose, customer }) {
                             inputProps={{ step: 1, min: 0, max: 365 }}
                         />
 
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    checked={data.allow_zero_payment}
+                                    onChange={(e) => setData('allow_zero_payment', e.target.checked)}
+                                />
+                            }
+                            label="Allow ₱0 payments (e.g. cancelled orders can be marked Paid without cash received)"
+                        />
+
                         <TextField
                             label="Notes"
                             value={data.notes}
@@ -182,6 +193,7 @@ export default function CustomersIndex({ customers }) {
                                     <TableCell>Phone</TableCell>
                                     <TableCell>Contact Person</TableCell>
                                     <TableCell>Terms</TableCell>
+                                    <TableCell>₱0 Payment</TableCell>
                                     <TableCell>Notes</TableCell>
                                     {canEdit && <TableCell align="center" sx={{ width: 80 }} />}
                                 </TableRow>
@@ -189,7 +201,7 @@ export default function CustomersIndex({ customers }) {
                             <TableBody>
                                 {filteredCustomers.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                        <TableCell colSpan={8} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                                             {search ? 'No customers match your search.' : 'No customers found.'}
                                         </TableCell>
                                     </TableRow>
@@ -203,6 +215,11 @@ export default function CustomersIndex({ customers }) {
                                             <TableCell>{c.phone ?? '—'}</TableCell>
                                             <TableCell>{c.contact_person ?? '—'}</TableCell>
                                             <TableCell>{c.payment_terms_days} days</TableCell>
+                                            <TableCell>
+                                                {c.allow_zero_payment
+                                                    ? <Chip label="Allowed" size="small" color="warning" variant="outlined" />
+                                                    : '—'}
+                                            </TableCell>
                                             <TableCell sx={{ color: 'text.secondary', maxWidth: 240 }}>{c.notes ?? '—'}</TableCell>
                                             {canEdit && (
                                                 <TableCell align="center">

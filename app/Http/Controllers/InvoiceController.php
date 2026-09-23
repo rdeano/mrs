@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -34,7 +35,8 @@ class InvoiceController extends Controller
 
         $customers   = Customer::orderBy('name')->get(['id', 'name']);
         $itemOptions = Item::where('is_active', true)->orderBy('name')->get(['id', 'name', 'unit', 'default_price']);
-        $total       = $entries->sum('total_amount');
+        // Matches the P&L rollup: a cancelled order never counts as Sales.
+        $total       = $entries->where('status', '!=', 'cancelled')->sum('total_amount');
 
         return Inertia::render('Receivables/Index', compact('periods', 'currentPeriod', 'entries', 'customers', 'itemOptions', 'total'));
     }
@@ -98,7 +100,16 @@ class InvoiceController extends Controller
         ]);
 
         abort_if($invoice->period?->is_closed, 403, 'Period is closed.');
-        abort_if($invoice->payments()->exists(), 422, 'This invoice already has payments recorded — delete them first before changing its items.');
+
+        if ($invoice->payments()->exists()) {
+            // A cancelled order carries its own ₱0 payment entry (see
+            // PaymentController::recomputeInvoice), so this is also what
+            // stops someone from editing a cancelled invoice's items out
+            // from under it — delete that entry via Payments first.
+            throw ValidationException::withMessages([
+                'items' => 'This invoice already has payments recorded — delete them first before changing its items.',
+            ]);
+        }
 
         DB::transaction(function () use ($invoice, $validated) {
             $lineItems = array_map(fn ($row) => [

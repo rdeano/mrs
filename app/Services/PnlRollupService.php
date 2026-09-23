@@ -56,6 +56,7 @@ class PnlRollupService
 
         $invoiceSums = Invoice::where('pnl_period_id', $period->id)
             ->whereNotNull('pnl_line_item_id')
+            ->where('status', '!=', 'cancelled')
             ->get()
             ->groupBy('pnl_line_item_id')
             ->map(fn($rows) => $this->sumByDate($rows, 'invoice_date', 'total_amount'));

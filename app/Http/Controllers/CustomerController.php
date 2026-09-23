@@ -27,6 +27,7 @@ class CustomerController extends Controller
             'contact_person'      => 'nullable|string|max:150',
             'address'             => 'nullable|string|max:255',
             'payment_terms_days'  => 'required|integer|min:0|max:365',
+            'allow_zero_payment'  => 'boolean',
             'notes'               => 'nullable|string',
         ]);
 
@@ -44,6 +45,7 @@ class CustomerController extends Controller
             'contact_person'      => 'nullable|string|max:150',
             'address'             => 'nullable|string|max:255',
             'payment_terms_days'  => 'required|integer|min:0|max:365',
+            'allow_zero_payment'  => 'boolean',
             'notes'               => 'nullable|string',
         ]);
 

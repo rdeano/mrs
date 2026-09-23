@@ -33,6 +33,12 @@ export default function Login() {
             <Box sx={{ width: '100%', maxWidth: 420 }}>
                 {/* Brand */}
                 <Box textAlign="center" mb={4}>
+                    <Box
+                        component="img"
+                        src="/images/logo.jpg"
+                        alt="MRS Meat Trading"
+                        sx={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', mx: 'auto', mb: 2 }}
+                    />
                     <Typography variant="h5" fontWeight={800} color="#fff" letterSpacing={-0.5}>
                         MRS Meat Trading
                     </Typography>

@@ -121,13 +121,21 @@ export default function AppLayout({ children, title }) {
             }}
         >
             {/* Logo */}
-            <Box sx={{ px: 3, py: 2.5, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                <Typography variant="h6" fontWeight={700} color="#fff" letterSpacing={-0.3}>
-                    MRS Trading
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', display: 'block', mt: 0.25 }}>
-                    Meat Trading System
-                </Typography>
+            <Box sx={{ px: 3, py: 2, borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box
+                    component="img"
+                    src="/images/logo.jpg"
+                    alt="MRS Meat Trading"
+                    sx={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                />
+                <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="h6" fontWeight={700} color="#fff" letterSpacing={-0.3} noWrap>
+                        MRS Trading
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', display: 'block', mt: 0.25 }} noWrap>
+                        Meat Trading System
+                    </Typography>
+                </Box>
             </Box>
 
             {/* Nav */}

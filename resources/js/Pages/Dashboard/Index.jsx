@@ -11,11 +11,12 @@ import { BarChart } from '@mui/x-charts/BarChart';
 import { peso, shortDate } from '@/utils/format';
 
 const STATUS_COLOR = {
-    draft:   'default',
-    sent:    'info',
-    partial: 'warning',
-    paid:    'success',
-    overdue: 'error',
+    draft:     'default',
+    sent:      'info',
+    partial:   'warning',
+    paid:      'success',
+    overdue:   'error',
+    cancelled: 'default',
 };
 
 // Fixed categorical order (blue, orange, aqua) — never reassigned per render,

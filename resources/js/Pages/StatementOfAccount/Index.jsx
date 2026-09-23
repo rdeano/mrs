@@ -154,8 +154,10 @@ function SoaDocument({ statement, asOf, statementNo }) {
                         ) : (
                             rows.map(({ key, invoice, item, isFirst, span }) => {
                                 const isPaid = invoice.status === 'paid';
+                                const isCancelled = invoice.status === 'cancelled';
+                                const struckThrough = isPaid || isCancelled;
                                 return (
-                                    <TableRow key={key} sx={{ opacity: isPaid ? 0.55 : 1 }}>
+                                    <TableRow key={key} sx={{ opacity: struckThrough ? 0.55 : 1 }}>
                                         {isFirst && (
                                             <TableCell rowSpan={span} sx={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>
                                                 {usDate(invoice.invoice_date)}
@@ -168,14 +170,17 @@ function SoaDocument({ statement, asOf, statementNo }) {
                                                     {isPaid && (
                                                         <Chip label="Paid" color="success" size="small" variant="filled" />
                                                     )}
+                                                    {isCancelled && (
+                                                        <Chip label="Cancelled" color="default" size="small" variant="filled" />
+                                                    )}
                                                 </Stack>
                                             </TableCell>
                                         )}
-                                        <TableCell sx={{ textDecoration: isPaid ? 'line-through' : 'none' }}>{item.item_name}</TableCell>
-                                        <TableCell align="right" sx={{ textDecoration: isPaid ? 'line-through' : 'none' }}>{peso(item.amount)}</TableCell>
+                                        <TableCell sx={{ textDecoration: struckThrough ? 'line-through' : 'none' }}>{item.item_name}</TableCell>
+                                        <TableCell align="right" sx={{ textDecoration: struckThrough ? 'line-through' : 'none' }}>{peso(item.amount)}</TableCell>
                                         {isFirst && (
                                             <TableCell rowSpan={span} align="right" sx={{ fontWeight: 700, verticalAlign: 'top' }}>
-                                                {peso(invoice.total_amount)}
+                                                {isCancelled ? peso(0) : peso(invoice.total_amount)}
                                             </TableCell>
                                         )}
                                     </TableRow>

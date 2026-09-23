@@ -351,6 +351,9 @@ class PnlController extends Controller
             'invoice' => Invoice::where('pnl_period_id', $validated['pnl_period_id'])
                 ->where('pnl_line_item_id', $item->id)
                 ->where('invoice_date', $validated['date'])
+                // Matches PnlRollupService: a cancelled order isn't part of
+                // this cell's total, so it shouldn't appear in its breakdown.
+                ->where('status', '!=', 'cancelled')
                 ->with(['customer:id,name', 'items'])
                 ->get()
                 ->map(fn(Invoice $i) => [

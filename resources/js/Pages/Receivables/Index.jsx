@@ -55,6 +55,9 @@ function EntryForm({ open, onClose, periodId, customers, itemOptions, entry }) {
                 <Divider />
                 <DialogContent>
                     <Stack spacing={2.5} pt={1}>
+                        {typeof errors.items === 'string' && (
+                            <Typography variant="body2" color="error">{errors.items}</Typography>
+                        )}
                         <Stack direction="row" spacing={2}>
                             <TextField
                                 label="Invoice No."
