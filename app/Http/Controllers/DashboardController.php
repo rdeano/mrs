@@ -162,11 +162,6 @@ class DashboardController extends Controller
             'end'   => $periods->last()->end_date->format('Y-m-d'),
         ] : null;
 
-        $recentInvoices = Invoice::with('customer')
-            ->latest('invoice_date')
-            ->take(8)
-            ->get(['id', 'invoice_no', 'customer_id', 'pnl_period_id', 'invoice_date', 'status', 'total_amount', 'paid_amount']);
-
         $receivablesAging = [
             ['bucket' => 'Not yet due',        'amount' => $this->agingAmount(null, 0),  'from' => null, 'to' => 0],
             ['bucket' => '1–30 days overdue',  'amount' => $this->agingAmount(1, 30),    'from' => 1,    'to' => 30],
@@ -174,9 +169,11 @@ class DashboardController extends Controller
             ['bucket' => '60+ days overdue',   'amount' => $this->agingAmount(61, null), 'from' => 61,   'to' => null],
         ];
 
+        $overdueByCustomer = $this->overdueByCustomer();
+
         return Inertia::render('Dashboard/Index', compact(
-            'dateRange', 'stats', 'recentInvoices', 'receivablesAging', 'periodTrend',
-            'payablesBreakdown', 'expensesByCategory'
+            'dateRange', 'stats', 'receivablesAging', 'periodTrend',
+            'payablesBreakdown', 'expensesByCategory', 'overdueByCustomer'
         ));
     }
 
@@ -204,6 +201,29 @@ class DashboardController extends Controller
             )
             ->selectRaw('SUM(invoices.total_amount - invoices.paid_amount) as amount_due')
             ->value('amount_due') ?? 0;
+    }
+
+    /**
+     * Every customer with at least one overdue invoice (days past due,
+     * computed the same way as agingAmount()), summed to one balance per
+     * customer and sorted worst-first — turns the Aging chart's bucket
+     * totals into "who specifically owes it".
+     */
+    private function overdueByCustomer(): \Illuminate\Support\Collection
+    {
+        return Invoice::whereIn('status', ['sent', 'partial', 'overdue'])
+            ->join('customers', 'customers.id', '=', 'invoices.customer_id')
+            ->whereRaw('DATEDIFF(NOW(), DATE_ADD(invoices.invoice_date, INTERVAL COALESCE(customers.payment_terms_days, 30) DAY)) > 0')
+            ->selectRaw('customers.id as customer_id, customers.name as customer_name, SUM(invoices.total_amount - invoices.paid_amount) as amount')
+            ->groupBy('customers.id', 'customers.name')
+            ->havingRaw('SUM(invoices.total_amount - invoices.paid_amount) > 0.0001')
+            ->orderByDesc('amount')
+            ->get()
+            ->map(fn ($row) => [
+                'customer_id'   => $row->customer_id,
+                'customer_name' => $row->customer_name,
+                'amount'        => (float) $row->amount,
+            ]);
     }
 
     private function periodDates(PnlPeriod $period): array

@@ -10,15 +10,6 @@ import {
 import { BarChart } from '@mui/x-charts/BarChart';
 import { peso, shortDate } from '@/utils/format';
 
-const STATUS_COLOR = {
-    draft:     'default',
-    sent:      'info',
-    partial:   'warning',
-    paid:      'success',
-    overdue:   'error',
-    cancelled: 'default',
-};
-
 // Fixed categorical order (blue, orange, aqua) — never reassigned per render,
 // so a series keeps its color if the set of metrics ever changes.
 const TREND_SERIES_COLOR = { total_sales: '#2a78d6', gross_profit: '#eb6834', net_profit: '#1baf7a' };
@@ -257,15 +248,17 @@ function ExpensesByCategoryChart({ rows, onSelect }) {
 }
 
 export default function Dashboard({
-    dateRange, stats, receivablesAging, recentInvoices, periodTrend, payablesBreakdown, expensesByCategory,
+    dateRange, stats, receivablesAging, overdueByCustomer, periodTrend, payablesBreakdown, expensesByCategory,
 }) {
     const hasAging = receivablesAging?.some((r) => Number(r.amount) > 0);
-    const hasInvoices = recentInvoices?.length > 0;
+    const hasOverdueCustomers = overdueByCustomer?.length > 0;
 
     const goToAgingBucket = (row) => router.get('/payments', {
         ...(row.from !== null ? { aging_from: row.from } : {}),
         ...(row.to !== null ? { aging_to: row.to } : {}),
     });
+
+    const goToCustomerOverdue = (row) => router.get('/payments', { q: row.customer_name });
 
     const goToPayablesTab = (row) => router.get('/payables', { outstanding: 1, tab: row.tab });
 
@@ -323,42 +316,40 @@ export default function Dashboard({
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 7 }}>
-                    <SectionCard title="Recent Receivables">
-                        {hasInvoices ? (
-                            <Stack divider={<Divider />}>
-                                {recentInvoices.map((inv) => (
-                                    <Stack
-                                        key={inv.id}
-                                        direction="row"
-                                        justifyContent="space-between"
-                                        alignItems="center"
-                                        py={1.25}
-                                        sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'grey.50' }, mx: -1, px: 1, borderRadius: 1 }}
-                                        onClick={() => router.get('/receivables', inv.pnl_period_id ? { period_id: inv.pnl_period_id } : {})}
-                                    >
-                                        <Box>
-                                            <Typography variant="body2" fontWeight={600}>{inv.invoice_no}</Typography>
-                                            <Typography variant="caption" color="text.secondary">
-                                                {inv.customer?.name ?? '—'}
-                                            </Typography>
-                                        </Box>
-                                        <Stack direction="row" spacing={1.5} alignItems="center">
-                                            <Typography variant="body2" fontWeight={600}>
-                                                {peso(inv.total_amount)}
-                                            </Typography>
-                                            <Chip
-                                                label={inv.status}
-                                                size="small"
-                                                color={STATUS_COLOR[inv.status] ?? 'default'}
-                                                sx={{ textTransform: 'capitalize', minWidth: 64 }}
-                                            />
-                                        </Stack>
+                    <SectionCard title="Overdue Balance by Customer">
+                        {hasOverdueCustomers ? (
+                            <>
+                                <Box sx={{ maxHeight: 320, overflowY: 'auto' }}>
+                                    <Stack divider={<Divider />}>
+                                        {overdueByCustomer.map((row) => (
+                                            <Stack
+                                                key={row.customer_id}
+                                                direction="row"
+                                                justifyContent="space-between"
+                                                alignItems="center"
+                                                py={1.25}
+                                                sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'grey.50' }, mx: -1, px: 1, borderRadius: 1 }}
+                                                onClick={() => goToCustomerOverdue(row)}
+                                            >
+                                                <Typography variant="body2" fontWeight={600}>{row.customer_name}</Typography>
+                                                <Typography variant="body2" fontWeight={700} color="error.main">
+                                                    {peso(row.amount)}
+                                                </Typography>
+                                            </Stack>
+                                        ))}
                                     </Stack>
-                                ))}
-                            </Stack>
+                                </Box>
+                                <Divider sx={{ mt: 1 }} />
+                                <Stack direction="row" justifyContent="space-between" pt={1.5}>
+                                    <Typography variant="body2" fontWeight={700}>Total Overdue</Typography>
+                                    <Typography variant="body2" fontWeight={800} color="error.main">
+                                        {peso(overdueByCustomer.reduce((sum, r) => sum + Number(r.amount), 0))}
+                                    </Typography>
+                                </Stack>
+                            </>
                         ) : (
                             <Typography variant="body2" color="text.secondary" textAlign="center" py={3}>
-                                No receivables yet.
+                                No overdue balances.
                             </Typography>
                         )}
                     </SectionCard>
