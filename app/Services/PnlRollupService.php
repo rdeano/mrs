@@ -117,43 +117,59 @@ class PnlRollupService
     }
 
     /**
-     * Net Profit summed across every period, after BIR & Savings — same formula
-     * DashboardController and PnlController each compute inline for their own
-     * needs (a per-period breakdown for trends/charts, and per-date grid rows,
-     * respectively). This is the plain scalar total, for callers that only need
-     * the bottom-line figure (e.g. partner profit-share entitlement).
+     * Net Profit (after BIR & Savings) per date, across every period — same
+     * per-date formula PnlController uses for its grid, including rounding BIR
+     * per date. Per-date rather than per-period so callers can apply values
+     * that change mid-period (e.g. a partner's effective-dated share %).
+     *
+     * @return array<string, float> date (Y-m-d) => net profit
      */
-    public function allTimeNetProfit(): float
+    public function allTimeNetProfitByDate(): array
     {
         $periods = PnlPeriod::orderBy('start_date')->get();
         $lineItems = PnlLineItem::with('category')->where('is_active', true)->get();
         $defaultBirPct = (float) Setting::get('bir_savings_percent', 25);
 
-        $preBirTotal = $birTotal = 0.0;
+        // Sign each line item's contribution toward pre-BIR profit.
+        $signByType = [
+            'revenue' => 1, 'cos' => -1, 'gross_profit' => -1, // Wastages line lives in gross_profit
+            'sga' => -1, 'other_income' => 1, 'other_expense' => -1,
+        ];
+
+        $npByDate = [];
 
         foreach ($periods as $period) {
             $dates  = $this->periodDatesFor($period);
             $rollup = $this->forPeriod($period, $dates);
-
-            $sumByType = fn (string $type) => $lineItems
-                ->filter(fn (PnlLineItem $item) => $item->category?->type === $type)
-                ->sum(fn (PnlLineItem $item) => $rollup->get($item->id, ['by_date' => collect()])['by_date']->sum());
-
-            $revenue = $sumByType('revenue');
-            $cos     = $sumByType('cos');
-            $sga     = $sumByType('sga');
-            $wastage = $sumByType('gross_profit'); // Wastages line lives in this category
-            $otherIn = $sumByType('other_income');
-            $otherEx = $sumByType('other_expense');
-
-            $preBir = ($revenue - $cos - $wastage) - $sga + $otherIn - $otherEx;
             $birPct = $period->bir_savings_percent !== null ? (float) $period->bir_savings_percent : $defaultBirPct;
 
-            $preBirTotal += $preBir;
-            $birTotal    += round($preBir * $birPct / 100, 2);
+            $preBir = array_fill_keys($dates, 0.0);
+            foreach ($lineItems as $item) {
+                $sign = $signByType[$item->category?->type] ?? 0;
+                if ($sign === 0) {
+                    continue;
+                }
+                foreach ($rollup->get($item->id, ['by_date' => collect()])['by_date'] as $d => $amount) {
+                    if (array_key_exists($d, $preBir)) {
+                        $preBir[$d] += $sign * (float) $amount;
+                    }
+                }
+            }
+
+            foreach ($preBir as $d => $value) {
+                if ($value != 0) {
+                    $npByDate[$d] = ($npByDate[$d] ?? 0) + $value - round($value * $birPct / 100, 2);
+                }
+            }
         }
 
-        return $preBirTotal - $birTotal;
+        return $npByDate;
+    }
+
+    /** Plain all-time Net Profit total, after BIR & Savings. */
+    public function allTimeNetProfit(): float
+    {
+        return array_sum($this->allTimeNetProfitByDate());
     }
 
     private function periodDatesFor(PnlPeriod $period): array

@@ -146,6 +146,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/partners', [PartnerController::class, 'index'])->name('partners.index');
     Route::post('/partners', [PartnerController::class, 'store'])->name('partners.store');
     Route::put('/partners/{partner}', [PartnerController::class, 'update'])->name('partners.update');
+    Route::delete('/partners/{partner}/rates/{rate}', [PartnerController::class, 'destroyRate'])->name('partners.rates.destroy');
 
     // Partner Payments
     Route::get('/partner-payments', [PartnerPaymentController::class, 'index'])->name('partner-payments.index');

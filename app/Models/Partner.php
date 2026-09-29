@@ -35,4 +35,31 @@ class Partner extends Model
     {
         return $this->hasMany(PartnerPayment::class);
     }
+
+    /** Share % history, oldest first. `share_percentage` above is just the rate in effect today. */
+    public function rates(): HasMany
+    {
+        return $this->hasMany(PartnerShareRate::class)->orderBy('effective_from');
+    }
+
+    /**
+     * Share % in effect on a given date (Y-m-d): the latest rate whose
+     * effective_from is on or before it, or 0 before the partner's first rate.
+     * Uses the loaded `rates` relation — eager-load it when calling in a loop.
+     */
+    public function shareOn(string $date): float
+    {
+        $rate = $this->rates
+            ->filter(fn (PartnerShareRate $r) => $r->effective_from->format('Y-m-d') <= $date)
+            ->last();
+
+        return $rate ? (float) $rate->share_percentage : 0.0;
+    }
+
+    /** Re-derive the cached `share_percentage` column from the rate history as of today. */
+    public function syncCurrentShare(): void
+    {
+        $this->load('rates');
+        $this->update(['share_percentage' => $this->shareOn(now()->toDateString())]);
+    }
 }

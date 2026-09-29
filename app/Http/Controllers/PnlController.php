@@ -175,9 +175,14 @@ class PnlController extends Controller
                 'is_locked'           => $isLocked,
             ];
 
-            // Partner profit split — each active partner's cut of net profit, per date.
-            // Not stored anywhere; computed live from net profit, same as the xlsx does.
-            $partners = Partner::where('is_active', true)->orderByDesc('share_percentage')->get();
+            // Partner profit split — each partner's cut of net profit, per date, at the
+            // share % in effect on that date (effective-dated rate history), so a rate
+            // change only re-prices dates from its effective date onward. Any partner
+            // with a non-zero rate on some date in this period is shown, active or not —
+            // a partner who left mid-period still earned their share up to that date.
+            $partners = Partner::with('rates')->orderByDesc('share_percentage')->get()
+                ->filter(fn (Partner $p) => collect($dates)->contains(fn ($d) => $p->shareOn($d) != 0))
+                ->values();
 
             // ── Step 4: assemble final categories for the view ───────────
             $categories = $raw->map(function ($cat) use ($dates, $gpbwByDate, $gpByDate, $opByDate, $preBirByDate, $birByDate, $birSavingsPct, $npByDate, $partners) {
@@ -251,15 +256,21 @@ class PnlController extends Controller
                     ];
 
                     $partnerRows = $partners->map(function (Partner $partner) use ($dates, $npByDate) {
-                        $share = (float) $partner->share_percentage / 100;
-
                         $entries = collect($dates)
-                            ->mapWithKeys(fn($d) => [$d => $npByDate[$d] * $share])
+                            ->mapWithKeys(fn($d) => [$d => $npByDate[$d] * $partner->shareOn($d) / 100])
                             ->filter(fn($v) => $v != 0);
+
+                        // Label with every rate that applied during this period, in order,
+                        // e.g. "Sir Jom (33.33% → 10%)" for a mid-period change.
+                        $pctLabel = collect($dates)
+                            ->map(fn($d) => $partner->shareOn($d))
+                            ->unique()
+                            ->map(fn($pct) => rtrim(rtrim(number_format($pct, 2), '0'), '.') . '%')
+                            ->implode(' → ');
 
                         return [
                             'id'           => 'partner-' . $partner->id,
-                            'name'         => $partner->name . ' (' . rtrim(rtrim(number_format($partner->share_percentage, 2), '0'), '.') . '%)',
+                            'name'         => $partner->name . ' (' . $pctLabel . ')',
                             'is_auto'      => true,
                             'is_subtotal'  => true,
                             'source_label' => null,

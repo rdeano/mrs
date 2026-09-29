@@ -9,13 +9,27 @@ import {
 } from '@mui/material';
 import { Add, Edit } from '@mui/icons-material';
 
-function PartnerForm({ open, onClose, partner }) {
+const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
+
+// YYYY-MM-DD -> MM/DD/YYYY
+const fmtDate = (d) => {
+    const [y, m, day] = String(d).slice(0, 10).split('-');
+    return `${m}/${day}/${y}`;
+};
+
+const fmtPct = (v) => `${Number(v).toFixed(2)}%`;
+
+function PartnerForm({ open, onClose, partner, firstPeriodStart }) {
     const editing = Boolean(partner);
     const { data, setData, post, put, processing, errors, reset } = useForm({
         name: partner?.name ?? '',
         share_percentage: partner?.share_percentage ?? '',
+        // New partner: from the first period by default. Rate change: from today.
+        effective_from: editing ? today() : (firstPeriodStart ?? today()),
+        rate_notes: '',
         is_active: partner?.is_active ?? true,
     });
+    const rateChanged = !editing || Number(data.share_percentage) !== Number(partner.share_percentage);
 
     const submit = (e) => {
         e.preventDefault();
@@ -56,9 +70,36 @@ function PartnerForm({ open, onClose, partner }) {
                             inputProps={{ step: 'any', min: 0, max: 100 }}
                             InputProps={{ endAdornment: '%' }}
                         />
+                        {rateChanged && (
+                            <>
+                                <TextField
+                                    label="Share % effective from"
+                                    type="date"
+                                    value={data.effective_from}
+                                    onChange={(e) => setData('effective_from', e.target.value)}
+                                    error={!!errors.effective_from}
+                                    helperText={errors.effective_from ?? (editing
+                                        ? 'New rate applies to profit from this date onward. Earlier dates keep the old rate.'
+                                        : 'Rate applies to profit from this date onward.')}
+                                    fullWidth
+                                    required
+                                    InputLabelProps={{ shrink: true }}
+                                />
+                                {editing && (
+                                    <TextField
+                                        label="Reason (optional)"
+                                        value={data.rate_notes}
+                                        onChange={(e) => setData('rate_notes', e.target.value)}
+                                        error={!!errors.rate_notes}
+                                        helperText={errors.rate_notes ?? 'e.g. Resigned 09/15/2026'}
+                                        fullWidth
+                                    />
+                                )}
+                            </>
+                        )}
                         <FormControlLabel
                             control={<Switch checked={data.is_active} onChange={(e) => setData('is_active', e.target.checked)} />}
-                            label="Active (included in the P&L profit split)"
+                            label="Active (inactive partners stay on past P&L dates where they had a share)"
                         />
                     </Stack>
                 </DialogContent>
@@ -74,7 +115,31 @@ function PartnerForm({ open, onClose, partner }) {
     );
 }
 
-export default function PartnersIndex({ partners, activeTotal }) {
+function RateHistory({ partner, canEdit }) {
+    const rates = partner.rates ?? [];
+
+    const remove = (rate) => {
+        if (!window.confirm(`Remove the ${fmtPct(rate.share_percentage)} rate from ${fmtDate(rate.effective_from)}? The previous rate will apply again from that date.`)) return;
+        router.delete(`/partners/${partner.id}/rates/${rate.id}`, { preserveScroll: true });
+    };
+
+    return (
+        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+            {rates.map((r) => (
+                <Chip
+                    key={r.id}
+                    size="small"
+                    variant="outlined"
+                    label={`${fmtPct(r.share_percentage)} from ${fmtDate(r.effective_from)}`}
+                    title={r.notes ?? undefined}
+                    onDelete={canEdit && rates.length > 1 ? () => remove(r) : undefined}
+                />
+            ))}
+        </Stack>
+    );
+}
+
+export default function PartnersIndex({ partners, activeTotal, firstPeriodStart }) {
     const { auth } = usePage().props;
     const canEdit = auth.permissions.includes('manage partners');
     const [formOpen, setFormOpen] = useState(false);
@@ -90,12 +155,13 @@ export default function PartnersIndex({ partners, activeTotal }) {
                 <Box>
                     <Typography variant="h5" fontWeight={600}>Partners</Typography>
                     <Typography variant="body2" color="text.secondary" mt={0.5}>
-                        Each active partner's share percentage is applied to Net Profit on the P&L statement.
+                        Each partner's share % is applied to Net Profit for each date, using the rate in effect on that date.
+                        Changing a rate only affects dates from its effective date onward.
                     </Typography>
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
                     <Chip
-                        label={`Active share total: ${total.toFixed(2)}%`}
+                        label={`Share total today: ${total.toFixed(2)}%`}
                         color={total === 100 ? 'success' : 'warning'}
                         variant="outlined"
                     />
@@ -114,7 +180,8 @@ export default function PartnersIndex({ partners, activeTotal }) {
                             <TableHead>
                                 <TableRow>
                                     <TableCell>Name</TableCell>
-                                    <TableCell align="right">Share %</TableCell>
+                                    <TableCell align="right">Current Share %</TableCell>
+                                    <TableCell>Share History</TableCell>
                                     <TableCell>Status</TableCell>
                                     {canEdit && <TableCell align="center" sx={{ width: 80 }} />}
                                 </TableRow>
@@ -122,7 +189,7 @@ export default function PartnersIndex({ partners, activeTotal }) {
                             <TableBody>
                                 {partners.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={4} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                        <TableCell colSpan={5} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                                             No partners yet.
                                         </TableCell>
                                     </TableRow>
@@ -131,6 +198,7 @@ export default function PartnersIndex({ partners, activeTotal }) {
                                         <TableRow key={p.id} hover sx={{ opacity: p.is_active ? 1 : 0.5 }}>
                                             <TableCell fontWeight={500}>{p.name}</TableCell>
                                             <TableCell align="right">{Number(p.share_percentage).toFixed(2)}%</TableCell>
+                                            <TableCell><RateHistory partner={p} canEdit={canEdit} /></TableCell>
                                             <TableCell>
                                                 <Chip label={p.is_active ? 'Active' : 'Inactive'} size="small" color={p.is_active ? 'success' : 'default'} variant="outlined" />
                                             </TableCell>
@@ -155,6 +223,7 @@ export default function PartnersIndex({ partners, activeTotal }) {
                 open={formOpen}
                 onClose={() => setFormOpen(false)}
                 partner={editPartner}
+                firstPeriodStart={firstPeriodStart}
             />
         </AppLayout>
     );
