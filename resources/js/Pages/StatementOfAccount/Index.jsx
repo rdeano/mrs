@@ -2,8 +2,8 @@ import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router } from '@inertiajs/react';
 import {
-    Autocomplete, Box, Button, Card, CardContent, Chip,
-    Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+    Autocomplete, Box, Button, Card, CardContent, Chip, FormControlLabel,
+    Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     TextField, Typography,
 } from '@mui/material';
 import { Print } from '@mui/icons-material';
@@ -17,8 +17,11 @@ function usDate(d) {
     return `${Number(m)}/${Number(day)}/${y}`;
 }
 
-function SoaDocument({ statement, asOf, statementNo }) {
-    const { customer, invoices, previous_balance, credits, new_charges, total_balance } = statement;
+function SoaDocument({ statement, asOf, statementNo, hidePaid }) {
+    const { customer, previous_balance, credits, new_charges, total_balance } = statement;
+    const invoices = hidePaid
+        ? statement.invoices.filter((inv) => inv.status !== 'paid')
+        : statement.invoices;
 
     // Flatten invoices -> one row per item, so Date/Invoice#/Balance can span
     // the invoice's item rows via rowSpan, matching the paper-statement look.
@@ -232,6 +235,7 @@ export default function StatementOfAccountIndex({ customers, customerId, asOf, p
     const [asOfDate, setAsOfDate] = useState(asOf);
     const [fromDate, setFromDate] = useState(periodFrom);
     const [statementNo, setStatementNo] = useState('');
+    const [hidePaid, setHidePaid] = useState(true);
 
     const load = (customer, from, to) => {
         router.get('/statement-of-account', {
@@ -278,6 +282,10 @@ export default function StatementOfAccountIndex({ customers, customerId, asOf, p
                     onChange={(e) => setStatementNo(e.target.value)}
                     sx={{ width: 140 }}
                 />
+                <FormControlLabel
+                    control={<Switch checked={hidePaid} onChange={(e) => setHidePaid(e.target.checked)} />}
+                    label="Hide paid invoices"
+                />
                 {statement && (
                     <Button variant="contained" startIcon={<Print />} onClick={() => window.print()} sx={{ bgcolor: BRAND_RED, '&:hover': { bgcolor: '#5e1721' } }}>
                         Print / Save as PDF
@@ -292,7 +300,7 @@ export default function StatementOfAccountIndex({ customers, customerId, asOf, p
                     </CardContent>
                 </Card>
             ) : (
-                <SoaDocument statement={statement} asOf={asOfDate} statementNo={statementNo} />
+                <SoaDocument statement={statement} asOf={asOfDate} statementNo={statementNo} hidePaid={hidePaid} />
             )}
         </AppLayout>
     );
